@@ -239,6 +239,81 @@ public final class SunJCE extends Provider {
                 "com.sun.crypto.provider.AESCipher$AES256_GCM_NoPadding",
                 attrs);
 
+        // Camellia encryption/decryption
+        attrs.clear();
+        attrs.put("SupportedModes", BLOCK_MODES128);
+        attrs.put("SupportedPaddings", BLOCK_PADS);
+        attrs.put("SupportedKeyFormats", "RAW");
+        ps("Cipher", "Camellia", "com.sun.crypto.provider.CamelliaCipher$General",
+                null, attrs);
+
+        attrs.clear();
+        attrs.put("SupportedKeyFormats", "RAW");
+        psA("Cipher", "Camellia_128/ECB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia128_ECB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_128/CBC/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia128_CBC_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_128/OFB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia128_OFB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_128/CFB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia128_CFB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_128/GCM/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia128_GCM_NoPadding",
+                attrs);
+
+        psA("Cipher", "Camellia_192/ECB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia192_ECB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_192/CBC/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia192_CBC_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_192/OFB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia192_OFB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_192/CFB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia192_CFB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_192/GCM/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia192_GCM_NoPadding",
+                attrs);
+
+        psA("Cipher", "Camellia_256/ECB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia256_ECB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_256/CBC/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia256_CBC_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_256/OFB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia256_OFB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_256/CFB/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia256_CFB_NoPadding",
+                attrs);
+        psA("Cipher", "Camellia_256/GCM/NoPadding",
+                "com.sun.crypto.provider.CamelliaCipher$Camellia256_GCM_NoPadding",
+                attrs);
+
+        // Camellia Key Wrapping
+        attrs.clear();
+        attrs.put("SupportedModes", "ECB");
+        attrs.put("SupportedPaddings", "NOPADDING");
+        attrs.put("SupportedKeyFormats", "RAW");
+        ps("Cipher", "CamelliaWrap", "com.sun.crypto.provider.CamelliaWrapCipher$General",
+                null, attrs);
+        psA("Cipher", "CamelliaWrap_128",
+                "com.sun.crypto.provider.CamelliaWrapCipher$Camellia128",
+                attrs);
+        psA("Cipher", "CamelliaWrap_192",
+                "com.sun.crypto.provider.CamelliaWrapCipher$Camellia192",
+                attrs);
+        psA("Cipher", "CamelliaWrap_256",
+                "com.sun.crypto.provider.CamelliaWrapCipher$Camellia256",
+                attrs);
+
         attrs.clear();
         attrs.put("SupportedModes", "CBC");
         attrs.put("SupportedPaddings", "NOPADDING");
