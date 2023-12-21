@@ -25,16 +25,16 @@
 #ifndef SHARE_GC_SHENANDOAH_SHENANDOAHBARRIERSET_HPP
 #define SHARE_GC_SHENANDOAH_SHENANDOAHBARRIERSET_HPP
 
-#include "gc/shared/accessBarrierSupport.hpp"
 #include "gc/shared/barrierSet.hpp"
-#include "gc/shenandoah/shenandoahHeap.hpp"
+#include "gc/shared/bufferNode.hpp"
 #include "gc/shenandoah/shenandoahSATBMarkQueueSet.hpp"
 
+class ShenandoahHeap;
 class ShenandoahBarrierSetAssembler;
 
 class ShenandoahBarrierSet: public BarrierSet {
 private:
-  ShenandoahHeap* _heap;
+  ShenandoahHeap* const _heap;
   BufferNode::Allocator _satb_mark_queue_buffer_allocator;
   ShenandoahSATBMarkQueueSet _satb_mark_queue_set;
 
@@ -55,11 +55,11 @@ public:
   static bool need_keep_alive_barrier(DecoratorSet decorators, BasicType type);
 
   static bool is_strong_access(DecoratorSet decorators) {
-    return (decorators & (ON_WEAK_OOP_REF | ON_PHANTOM_OOP_REF | ON_UNKNOWN_OOP_REF)) == 0;
+    return (decorators & (ON_WEAK_OOP_REF | ON_PHANTOM_OOP_REF)) == 0;
   }
 
   static bool is_weak_access(DecoratorSet decorators) {
-    return (decorators & (ON_WEAK_OOP_REF | ON_UNKNOWN_OOP_REF)) != 0;
+    return (decorators & ON_WEAK_OOP_REF) != 0;
   }
 
   static bool is_phantom_access(DecoratorSet decorators) {
@@ -71,10 +71,6 @@ public:
   }
 
   void print_on(outputStream* st) const;
-
-  bool is_a(BarrierSet::Name bsn);
-
-  bool is_aligned(HeapWord* hw);
 
   template <class T>
   inline void arraycopy_barrier(T* src, T* dst, size_t count);
@@ -95,8 +91,6 @@ public:
   inline void satb_enqueue(oop value);
   inline void iu_barrier(oop obj);
 
-  template <DecoratorSet decorators>
-  inline void keep_alive_if_weak(oop value);
   inline void keep_alive_if_weak(DecoratorSet decorators, oop value);
 
   inline void enqueue(oop obj);
@@ -106,8 +100,17 @@ public:
   template <class T>
   inline oop load_reference_barrier_mutator(oop obj, T* load_addr);
 
-  template <DecoratorSet decorators, class T>
-  inline oop load_reference_barrier(oop obj, T* load_addr);
+  template <class T>
+  inline oop load_reference_barrier(DecoratorSet decorators, oop obj, T* load_addr);
+
+  template <typename T>
+  inline oop oop_load(DecoratorSet decorators, T* addr);
+
+  template <typename T>
+  inline oop oop_cmpxchg(DecoratorSet decorators, T* addr, oop compare_value, oop new_value);
+
+  template <typename T>
+  inline oop oop_xchg(DecoratorSet decorators, T* addr, oop new_value);
 
 private:
   template <class T>
@@ -130,6 +133,10 @@ public:
   template <DecoratorSet decorators, typename BarrierSetT = ShenandoahBarrierSet>
   class AccessBarrier: public BarrierSet::AccessBarrier<decorators, BarrierSetT> {
     typedef BarrierSet::AccessBarrier<decorators, BarrierSetT> Raw;
+
+  private:
+    template <typename T>
+    static void oop_store_common(T* addr, oop value);
 
   public:
     // Heap oop accesses. These accessors get resolved when
@@ -159,11 +166,11 @@ public:
     // Clone barrier support
     static void clone_in_heap(oop src, oop dst, size_t size);
 
-    // Needed for loads on non-heap weak references
+    // Support for concurrent roots evacuation, updating and weak roots clearing
     template <typename T>
     static oop oop_load_not_in_heap(T* addr);
 
-    // Used for catching bad stores
+    // Support for concurrent roots marking
     template <typename T>
     static void oop_store_not_in_heap(T* addr, oop value);
 
@@ -172,7 +179,6 @@ public:
 
     template <typename T>
     static oop oop_atomic_xchg_not_in_heap(T* addr, oop new_value);
-
   };
 
 };

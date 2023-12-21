@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -98,7 +98,7 @@ static BOOL inDoDragDropLoop;
 
 + (jint) scrollStateWithEvent: (NSEvent*) event {
 
-    if ([event type] != NSScrollWheel) {
+    if ([event type] != NSEventTypeScrollWheel) {
         return 0;
     }
 
@@ -126,7 +126,7 @@ static BOOL inDoDragDropLoop;
 }
 
 + (BOOL) hasPreciseScrollingDeltas: (NSEvent*) event {
-    return [event type] == NSScrollWheel
+    return [event type] == NSEventTypeScrollWheel
         && [event respondsToSelector:@selector(hasPreciseScrollingDeltas)]
         && [event hasPreciseScrollingDeltas];
 }
@@ -259,6 +259,7 @@ BOOL isSWTInWebStart(JNIEnv* env) {
 
 static void AWT_NSUncaughtExceptionHandler(NSException *exception) {
     NSLog(@"Apple AWT Internal Exception: %@", [exception description]);
+    NSLog(@"trace: %@", [exception callStackSymbols]);
 }
 
 @interface AWTStarter : NSObject
@@ -456,7 +457,7 @@ JNIEXPORT jboolean JNICALL Java_sun_lwawt_macosx_LWCToolkit_nativeSyncQueue
         // could happen if we are embedded inside SWT application,
         // in this case just spin a single empty block through
         // the event loop to give it a chance to process pending events
-        [JNFRunLoop performOnMainThreadWaiting:YES withBlock:^(){}];
+        [ThreadUtilities performOnMainThreadWaiting:YES block:^(){}];
     }
 
     if (([AWTToolkit getEventCount] - currentEventNum) != 0) {
@@ -517,7 +518,7 @@ BOOL doLoadNativeColors(JNIEnv *env, jintArray jColors, BOOL useAppleColors) {
     UInt32 colorsArray[len];
     UInt32 *colors = colorsArray;
 
-    [JNFRunLoop performOnMainThreadWaiting:YES withBlock:^(){
+    [ThreadUtilities performOnMainThreadWaiting:YES block:^(){
         NSUInteger i;
         for (i = 0; i < len; i++) {
             colors[i] = RGB([CSystemColors getColor:i useAppleColor:useAppleColors]);
@@ -587,7 +588,7 @@ JNI_COCOA_ENTER(env);
     // Don't use acceptInputForMode because that doesn't setup autorelease pools properly
     BOOL isRunning = true;
     while (![mediatorObject shouldEndRunLoop] && isRunning) {
-        isRunning = [[NSRunLoop currentRunLoop] runMode:(inAWT ? [JNFRunLoop javaRunLoopMode] : NSDefaultRunLoopMode)
+        isRunning = [[NSRunLoop currentRunLoop] runMode:(inAWT ? [ThreadUtilities javaRunLoopMode] : NSDefaultRunLoopMode)
                                              beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.010]];
         if (processEvents) {
             //We do not spin a runloop here as date is nil, so does not matter which mode to use
@@ -654,7 +655,7 @@ JNIEXPORT jboolean JNICALL Java_sun_lwawt_macosx_LWCToolkit_isCapsLockOn
 (JNIEnv *env, jobject self)
 {
     __block jboolean isOn = JNI_FALSE;
-    [JNFRunLoop performOnMainThreadWaiting:YES withBlock:^(){
+    [ThreadUtilities performOnMainThreadWaiting:YES block:^(){
         NSUInteger modifiers = [NSEvent modifierFlags];
         isOn = (modifiers & NSAlphaShiftKeyMask) != 0;
     }];
@@ -727,7 +728,7 @@ JNIEXPORT jstring JNICALL
 Java_sun_font_FontManager_getFontPath
 (JNIEnv *env, jclass obj, jboolean noType1)
 {
-    return JNFNSToJavaString(env, @"/Library/Fonts");
+    return NSStringToJavaString(env, @"/Library/Fonts");
 }
 
 // This isn't yet used on unix, the implementation is added since shared
@@ -758,7 +759,7 @@ Java_sun_lwawt_macosx_LWCToolkit_initIDs
     CHECK_NULL(getButtonDownMasksID);
     jintArray obj = (jintArray)(*env)->CallStaticObjectMethod(env, inputEventClazz, getButtonDownMasksID);
     CHECK_EXCEPTION();
-    jint * tmp = (*env)->GetIntArrayElements(env, obj, JNI_FALSE);
+    jint * tmp = (*env)->GetIntArrayElements(env, obj, NULL);
     CHECK_NULL(tmp);
 
     gButtonDownMasks = (jint*)SAFE_SIZE_ARRAY_ALLOC(malloc, sizeof(jint), gNumberOfButtons);
@@ -869,7 +870,7 @@ JNIEXPORT jint JNICALL
 Java_sun_lwawt_macosx_LWCToolkit_getMultiClickTime(JNIEnv *env, jclass klass) {
     __block jint multiClickTime = 0;
     JNI_COCOA_ENTER(env);
-    [JNFRunLoop performOnMainThreadWaiting:YES withBlock:^(){
+    [ThreadUtilities performOnMainThreadWaiting:YES block:^(){
         multiClickTime = (jint)([NSEvent doubleClickInterval] * 1000);
     }];
     JNI_COCOA_EXIT(env);

@@ -148,6 +148,12 @@ import java.util.concurrent.locks.LockSupport;
  * returns snapshots of these state queries in a form convenient for
  * informal monitoring.
  *
+ * <p>Memory consistency effects: Actions prior to any form of arrive
+ * method <a href="package-summary.html#MemoryVisibility">
+ * <i>happen-before</i></a> a corresponding phase advance and
+ * onAdvance actions (if present), which in turn <i>happen-before</i>
+ * actions following the phase advance.
+ *
  * <p><b>Sample usages:</b>
  *
  * <p>A {@code Phaser} may be used instead of a {@code CountDownLatch}
@@ -1141,7 +1147,7 @@ public class Phaser {
         }
 
         // Reduce the risk of rare disastrous classloading in first call to
-        // LockSupport.park: https://bugs.openjdk.java.net/browse/JDK-8074773
+        // LockSupport.park: https://bugs.openjdk.org/browse/JDK-8074773
         Class<?> ensureLoaded = LockSupport.class;
     }
 }

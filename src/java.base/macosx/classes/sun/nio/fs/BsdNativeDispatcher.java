@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2008, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,6 +24,8 @@
  */
 
 package sun.nio.fs;
+
+import jdk.internal.misc.Blocker;
 
 /**
  * Bsd specific system calls.
@@ -53,75 +55,75 @@ class BsdNativeDispatcher extends UnixNativeDispatcher {
      * returns buf->f_mntonname (directory on which mounted)
      */
     static byte[] getmntonname(UnixPath path) throws UnixException {
-        NativeBuffer pathBuffer = copyToNativeBuffer(path);
-        try {
+        try (NativeBuffer pathBuffer = copyToNativeBuffer(path)) {
             return getmntonname0(pathBuffer.address());
-        } finally {
-            pathBuffer.release();
         }
     }
     static native byte[] getmntonname0(long pathAddress) throws UnixException;
 
     /**
-     * ssize_t fgetxattr(int fd, const char *name, void *value, size_t size,
-     *  u_int32_t position, int options);
+     * int clonefile(const char * src, const char * dst, int flags);
      */
-    static int fgetxattr(int fd, byte[] name, long valueAddress,
-                         int valueLen) throws UnixException
+    static int clonefile(UnixPath src, UnixPath dst, int flags)
+        throws UnixException
     {
-        NativeBuffer buffer = NativeBuffers.asNativeBuffer(name);
-        try {
-            return fgetxattr0(fd, buffer.address(), valueAddress, valueLen, 0L, 0);
-        } finally {
-            buffer.release();
+        try (NativeBuffer srcBuffer = copyToNativeBuffer(src);
+            NativeBuffer dstBuffer = copyToNativeBuffer(dst)) {
+            long comp = Blocker.begin();
+            try {
+                return clonefile0(srcBuffer.address(), dstBuffer.address(),
+                                  flags);
+            } finally {
+                Blocker.end(comp);
+            }
         }
     }
-
-    private static native int fgetxattr0(int fd, long nameAddress,
-        long valueAddress, int valueLen, long position, int options) throws UnixException;
+    private static native int clonefile0(long srcAddress, long dstAddress,
+                                         int flags);
 
     /**
-     * int fsetxattr(int fd, const char *name, void *value, size_t size,
-     *  u_int32_t position, int options);
+     * setattrlist(const char* path, struct attrlist* attrList, void* attrBuf,
+     *             size_t attrBufSize, unsigned long options)
      */
-    static void fsetxattr(int fd, byte[] name, long valueAddress,
-                          int valueLen) throws UnixException
+    static void setattrlist(UnixPath path, int commonattr, long modTime,
+                            long accTime, long createTime, long options)
+        throws UnixException
     {
-        NativeBuffer buffer = NativeBuffers.asNativeBuffer(name);
-        try {
-            fsetxattr0(fd, buffer.address(), valueAddress, valueLen, 0L, 0);
-        } finally {
-            buffer.release();
+        try (NativeBuffer buffer = copyToNativeBuffer(path)) {
+            long comp = Blocker.begin();
+            try {
+                setattrlist0(buffer.address(), commonattr, modTime, accTime,
+                             createTime, options);
+            } finally {
+                Blocker.end(comp);
+            }
         }
     }
-
-    private static native void fsetxattr0(int fd, long nameAddress,
-        long valueAddress, int valueLen, long position, int options) throws UnixException;
-
-    /**
-     * int fremovexattr(int fd, const char *name, int options);
-     */
-    static void fremovexattr(int fd, byte[] name) throws UnixException {
-        NativeBuffer buffer = NativeBuffers.asNativeBuffer(name);
-        try {
-            fremovexattr0(fd, buffer.address(), 0);
-        } finally {
-            buffer.release();
-        }
-    }
-
-    private static native void fremovexattr0(int fd, long nameAddress, int options)
+    private static native void setattrlist0(long pathAddress, int commonattr,
+                                            long modTime, long accTime,
+                                            long createTime, long options)
         throws UnixException;
 
     /**
-     * ssize_t flistxattr(int fd, char *namebuf, size_t size, int options);
+     * fsetattrlist(int fd, struct attrlist* attrList, void* attrBuf,
+     *              size_t attrBufSize, unsigned long options)
      */
-    static int flistxattr(int fd, long nameBufAddress, int size) throws UnixException {
-        return flistxattr0(fd, nameBufAddress, size, 0);
+    static void fsetattrlist(int fd, int commonattr, long modTime,
+                             long accTime, long createTime, long options)
+        throws UnixException
+    {
+        long comp = Blocker.begin();
+        try {
+            fsetattrlist0(fd, commonattr, modTime, accTime,
+                          createTime, options);
+        } finally {
+            Blocker.end(comp);
+        }
     }
-
-    private static native int flistxattr0(int fd, long nameBufAddress, int size,
-        int options) throws UnixException;
+    private static native void fsetattrlist0(int fd, int commonattr,
+                                             long modTime, long accTime,
+                                             long createTime, long options)
+        throws UnixException;
 
     // initialize field IDs
     private static native void initIDs();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2023, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018, 2020 SAP SE. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
@@ -24,6 +24,7 @@
  */
 
 #include "precompiled.hpp"
+#include "cds/cdsConfig.hpp"
 #include "classfile/classLoaderData.hpp"
 #include "classfile/classLoaderDataGraph.hpp"
 #include "memory/metaspace.hpp"
@@ -37,12 +38,13 @@
 #include "memory/metaspace/printCLDMetaspaceInfoClosure.hpp"
 #include "memory/metaspace/runningCounters.hpp"
 #include "memory/metaspace/virtualSpaceList.hpp"
+#include "memory/metaspaceUtils.hpp"
 #include "runtime/os.hpp"
 
 namespace metaspace {
 
 static const char* describe_spacetype(Metaspace::MetaspaceType st) {
-  const char* s = NULL;
+  const char* s = nullptr;
   switch (st) {
     case Metaspace::StandardMetaspaceType: s = "Standard"; break;
     case Metaspace::BootMetaspaceType: s = "Boot"; break;
@@ -77,7 +79,7 @@ static void print_vs(outputStream* out, size_t scale) {
     out->print(" committed, ");
     out->print(" %d nodes.", num_nodes_c);
     out->cr();
-    out->print("              Both:  ");
+    out->print("             Both:  ");
     print_scaled_words(out, reserved_c + reserved_nc, scale, 7);
     out->print(" reserved, ");
     print_scaled_words_and_percentage(out, committed_c + committed_nc, reserved_c + reserved_nc, scale, 7);
@@ -95,9 +97,7 @@ static void print_vs(outputStream* out, size_t scale) {
 
 static void print_settings(outputStream* out, size_t scale) {
   out->print("MaxMetaspaceSize: ");
-  if (MaxMetaspaceSize >= (max_uintx) - (2 * os::vm_page_size())) {
-    // aka "very big". Default is max_uintx, but due to rounding in arg parsing the real
-    // value is smaller.
+  if (MaxMetaspaceSize == max_uintx) {
     out->print("unlimited");
   } else {
     print_human_readable_size(out, MaxMetaspaceSize, scale);
@@ -106,8 +106,17 @@ static void print_settings(outputStream* out, size_t scale) {
   if (Metaspace::using_class_space()) {
     out->print("CompressedClassSpaceSize: ");
     print_human_readable_size(out, CompressedClassSpaceSize, scale);
+  } else {
+    out->print("No class space");
   }
   out->cr();
+  out->print("Initial GC threshold: ");
+  print_human_readable_size(out, MetaspaceSize, scale);
+  out->cr();
+  out->print("Current GC threshold: ");
+  print_human_readable_size(out, MetaspaceGC::capacity_until_GC(), scale);
+  out->cr();
+  out->print_cr("CDS: %s", (UseSharedSpaces ? "on" : (CDSConfig::is_dumping_static_archive() ? "dump" : "off")));
   Settings::print_on(out);
 }
 
@@ -290,6 +299,24 @@ void MetaspaceReporter::print_report(outputStream* out, size_t scale, int flags)
     non_class_cm_stat.print_on(out, scale);
     out->cr();
   }
+
+  // -- Print Chunkmanager details.
+  if ((flags & (int)Option::ShowChunkFreeList) > 0) {
+    out->cr();
+    out->print_cr("Chunk freelist details:");
+    if (Metaspace::using_class_space()) {
+      out->print_cr("   Non-Class:");
+    }
+    ChunkManager::chunkmanager_nonclass()->print_on(out);
+    out->cr();
+    if (Metaspace::using_class_space()) {
+      out->print_cr("       Class:");
+      ChunkManager::chunkmanager_class()->print_on(out);
+      out->cr();
+    }
+  }
+  out->cr();
+
 
   //////////// Waste section ///////////////////////////
   // As a convenience, print a summary of common waste.

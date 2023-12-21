@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,13 +30,16 @@
 #import "sun_lwawt_macosx_CPrinterPageDialog.h"
 
 #import <Cocoa/Cocoa.h>
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
 
 #import "PrinterView.h"
 #import "PrintModel.h"
 #import "ThreadUtilities.h"
 #import "GeomUtilities.h"
 #import "JNIUtilities.h"
+
+#define ONE_SIDED 0
+#define TWO_SIDED_LONG_EDGE 1
+#define TWO_SIDED_SHORT_EDGE 2
 
 static jclass sjc_Paper = NULL;
 static jclass sjc_PageFormat = NULL;
@@ -60,7 +63,7 @@ static jmethodID sjm_printerJob = NULL;
    GET_CPRINTERDIALOG_CLASS_RETURN(ret); \
    GET_FIELD_RETURN(sjm_printerJob, sjc_CPrinterDialog, "fPrinterJob", "Lsun/lwawt/macosx/CPrinterJob;", ret);
 
-static NSPrintInfo* createDefaultNSPrintInfo();
+static NSPrintInfo* createDefaultNSPrintInfo(JNIEnv* env, jstring printer);
 
 static void makeBestFit(NSPrintInfo* src);
 
@@ -87,7 +90,7 @@ static NSPrintInfo* createDefaultNSPrintInfo(JNIEnv* env, jstring printer)
     NSPrintInfo* defaultPrintInfo = [[NSPrintInfo sharedPrintInfo] copy];
     if (printer != NULL)
     {
-        NSPrinter* nsPrinter = [NSPrinter printerWithName:JNFJavaToNSString(env, printer)];
+        NSPrinter* nsPrinter = [NSPrinter printerWithName:JavaStringToNSString(env, printer)];
         if (nsPrinter != nil)
         {
             [defaultPrintInfo setPrinter:nsPrinter];
@@ -345,11 +348,29 @@ static void javaPageFormatToNSPrintInfo(JNIEnv* env, jobject srcPrintJob, jobjec
     jobject printerNameObj = (*env)->CallObjectMethod(env, srcPrintJob, jm_getPrinterName);
     CHECK_EXCEPTION();
     if (printerNameObj == NULL) return;
-    NSString *printerName = JNFJavaToNSString(env, printerNameObj);
+    NSString *printerName = JavaStringToNSString(env, printerNameObj);
     if (printerName == nil) return;
     NSPrinter *printer = [NSPrinter printerWithName:printerName];
     if (printer == nil) return;
     [dstPrintInfo setPrinter:printer];
+}
+
+static jint duplexModeToSides(PMDuplexMode duplexMode) {
+    switch(duplexMode) {
+        case kPMDuplexNone: return ONE_SIDED;
+        case kPMDuplexTumble: return TWO_SIDED_SHORT_EDGE;
+        case kPMDuplexNoTumble: return TWO_SIDED_LONG_EDGE;
+        default: return -1;
+    }
+}
+
+static PMDuplexMode sidesToDuplexMode(jint sides) {
+    switch(sides) {
+        case ONE_SIDED: return kPMDuplexNone;
+        case TWO_SIDED_SHORT_EDGE: return kPMDuplexTumble;
+        case TWO_SIDED_LONG_EDGE: return kPMDuplexNoTumble;
+        default: return kPMDuplexNone;
+    }
 }
 
 static void nsPrintInfoToJavaPrinterJob(JNIEnv* env, NSPrintInfo* src, jobject dstPrinterJob, jobject dstPageable)
@@ -361,10 +382,11 @@ static void nsPrintInfoToJavaPrinterJob(JNIEnv* env, NSPrintInfo* src, jobject d
     DECLARE_METHOD(jm_setPageRangeAttribute, sjc_CPrinterJob, "setPageRangeAttribute", "(IIZ)V");
     DECLARE_METHOD(jm_setPrintToFile, sjc_CPrinterJob, "setPrintToFile", "(Z)V");
     DECLARE_METHOD(jm_setDestinationFile, sjc_CPrinterJob, "setDestinationFile", "(Ljava/lang/String;)V");
+    DECLARE_METHOD(jm_setSides, sjc_CPrinterJob, "setSides", "(I)V");
 
     // get the selected printer's name, and set the appropriate PrintService on the Java side
     NSString *name = [[src printer] name];
-    jstring printerName = JNFNSToJavaString(env, name);
+    jstring printerName = NSStringToJavaString(env, name);
     (*env)->CallVoidMethod(env, dstPrinterJob, jm_setService, printerName);
     CHECK_EXCEPTION();
 
@@ -375,7 +397,7 @@ static void nsPrintInfoToJavaPrinterJob(JNIEnv* env, NSPrintInfo* src, jobject d
         CHECK_EXCEPTION();
         NSURL *url = [printingDictionary objectForKey:NSPrintJobSavingURL];
         NSString *nsStr = [url absoluteString];
-        jstring str = JNFNSToJavaString(env, nsStr);
+        jstring str = NSStringToJavaString(env, nsStr);
         (*env)->CallVoidMethod(env, dstPrinterJob, jm_setDestinationFile, str);
         CHECK_EXCEPTION();
     } else {
@@ -421,6 +443,12 @@ static void nsPrintInfoToJavaPrinterJob(JNIEnv* env, NSPrintInfo* src, jobject d
                           jFirstPage, jLastPage, isRangeSet); // AWT_THREADING Safe (known object)
         CHECK_EXCEPTION();
 
+        PMDuplexMode duplexSetting;
+        if (PMGetDuplex(src.PMPrintSettings, &duplexSetting) == noErr) {
+            jint sides = duplexModeToSides(duplexSetting);
+            (*env)->CallVoidMethod(env, dstPrinterJob, jm_setSides, sides); // AWT_THREADING Safe (known object)
+            CHECK_EXCEPTION();
+        }
     }
 }
 
@@ -439,6 +467,8 @@ static void javaPrinterJobToNSPrintInfo(JNIEnv* env, jobject srcPrinterJob, jobj
     DECLARE_METHOD(jm_getNumberOfPages, jc_Pageable, "getNumberOfPages", "()I");
     DECLARE_METHOD(jm_getPageFormat, sjc_CPrinterJob, "getPageFormatFromAttributes", "()Ljava/awt/print/PageFormat;");
     DECLARE_METHOD(jm_getDestinationFile, sjc_CPrinterJob, "getDestinationFile", "()Ljava/lang/String;");
+    DECLARE_METHOD(jm_getSides, sjc_CPrinterJob, "getSides", "()I");
+
 
     NSMutableDictionary* printingDictionary = [dst dictionary];
 
@@ -491,11 +521,22 @@ static void javaPrinterJobToNSPrintInfo(JNIEnv* env, jobject srcPrinterJob, jobj
     CHECK_EXCEPTION();
     if (dest != NULL) {
        [dst setJobDisposition:NSPrintSaveJob];
-       NSString *nsDestStr = JNFJavaToNSString(env, dest);
+       NSString *nsDestStr = JavaStringToNSString(env, dest);
        NSURL *nsURL = [NSURL fileURLWithPath:nsDestStr isDirectory:NO];
        [printingDictionary setObject:nsURL forKey:NSPrintJobSavingURL];
     } else {
        [dst setJobDisposition:NSPrintSpoolJob];
+    }
+
+    jint sides = (*env)->CallIntMethod(env, srcPrinterJob, jm_getSides);
+    CHECK_EXCEPTION();
+
+    if (sides >= 0) {
+        PMDuplexMode duplexMode = sidesToDuplexMode(sides);
+        PMPrintSettings printSettings = dst.PMPrintSettings;
+        if (PMSetDuplex(printSettings, duplexMode) == noErr) {
+            [dst updateFromPMPrintSettings];
+        }
     }
 }
 
@@ -628,7 +669,7 @@ JNI_COCOA_ENTER(env);
         jobject printerTrayObj = (*env)->CallObjectMethod(env, jthis, jm_getPrinterTray);
         CHECK_EXCEPTION();
         if (printerTrayObj != NULL) {
-            NSString *printerTray = JNFJavaToNSString(env, printerTrayObj);
+            NSString *printerTray = JavaStringToNSString(env, printerTrayObj);
             if (printerTray != nil) {
                 [[printInfo printSettings] setObject:printerTray forKey:@"InputSlot"];
             }
@@ -642,7 +683,7 @@ JNI_COCOA_ENTER(env);
         jobject printerNameObj = (*env)->CallObjectMethod(env, jthis, jm_getPrinterName);
         CHECK_EXCEPTION();
         if (printerNameObj != NULL) {
-            NSString *printerName = JNFJavaToNSString(env, printerNameObj);
+            NSString *printerName = JavaStringToNSString(env, printerNameObj);
             if (printerName != nil) {
                 NSPrinter *printer = [NSPrinter printerWithName:printerName];
                 if (printer != nil) [printInfo setPrinter:printer];

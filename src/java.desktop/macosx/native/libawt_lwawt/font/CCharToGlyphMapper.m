@@ -25,8 +25,6 @@
 
 #import "JNIUtilities.h"
 
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
-
 #import "AWTFont.h"
 #import "CoreTextSupport.h"
 
@@ -60,12 +58,14 @@ GetGlyphsFromUnicodes(JNIEnv *env, AWTFont *awtFont,
 {
     jint *glyphCodeInts = (*env)->GetPrimitiveArrayCritical(env, glyphs, 0);
 
-    CTS_GetGlyphsAsIntsForCharacters(awtFont, unicodes,
-                                     cgGlyphs, glyphCodeInts, count);
+    if (glyphCodeInts != NULL) {
+        CTS_GetGlyphsAsIntsForCharacters(awtFont, unicodes,
+                                         cgGlyphs, glyphCodeInts, count);
 
-    // Do not use JNI_COMMIT, as that will not free the buffer copy
-    // when +ProtectJavaHeap is on.
-    (*env)->ReleasePrimitiveArrayCritical(env, glyphs, glyphCodeInts, 0);
+        // Do not use JNI_COMMIT, as that will not free the buffer copy
+        // when +ProtectJavaHeap is on.
+        (*env)->ReleasePrimitiveArrayCritical(env, glyphs, glyphCodeInts, 0);
+    }
 }
 
 static inline void

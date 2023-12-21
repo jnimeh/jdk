@@ -37,14 +37,14 @@ import jdk.test.lib.process.ProcessTools;
 public class TestDieDefault {
 
   public static void passWith(String... args) throws Exception {
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
+    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(args);
     OutputAnalyzer out = new OutputAnalyzer(pb.start());
     out.shouldNotContain("OutOfMemoryError");
     out.shouldHaveExitValue(0);
   }
 
   public static void failWith(String... args) throws Exception {
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
+    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(args);
     OutputAnalyzer out = new OutputAnalyzer(pb.start());
     out.shouldContain("OutOfMemoryError");
     if (out.getExitValue() == 0) {
@@ -53,31 +53,24 @@ public class TestDieDefault {
   }
 
   public static void main(String[] args) throws Exception {
-    passWith("-Xmx128m",
+    passWith("-Xmx64m",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-Dcount=1",
              TestDieDefault.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              TestDieDefault.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xint",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              TestDieDefault.Workload.class.getName());
 
-    failWith("-Xmx128m",
-             "-Xbatch",
-             "-Xcomp",
-             "-XX:+UnlockExperimentalVMOptions",
-             "-XX:+UseEpsilonGC",
-             TestDieDefault.Workload.class.getName());
-
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xbatch",
              "-Xcomp",
              "-XX:TieredStopAtLevel=1",
@@ -85,7 +78,7 @@ public class TestDieDefault {
              "-XX:+UseEpsilonGC",
              TestDieDefault.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xbatch",
              "-Xcomp",
              "-XX:-TieredCompilation",

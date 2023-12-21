@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,8 +25,12 @@
 /*
  * @test LoaderConstraintsTest
  * @bug 8149996
+ * @requires vm.flagless
  * @modules java.base/jdk.internal.misc
- * @library /test/lib /runtime/testlibrary classes
+ * @library /test/lib classes
+ * @build test.Empty
+ * @build jdk.test.whitebox.WhiteBox
+ * @run driver jdk.test.lib.helpers.ClassFileInstaller jdk.test.whitebox.WhiteBox
  * @run driver LoaderConstraintsTest
  */
 
@@ -37,6 +41,8 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import jdk.test.lib.classloader.ClassUnloadCommon;
 
 public class LoaderConstraintsTest {
     private static OutputAnalyzer out;
@@ -56,9 +62,11 @@ public class LoaderConstraintsTest {
         List<String> argsList = new ArrayList<>();
         Collections.addAll(argsList, args);
         Collections.addAll(argsList, "-Xmn8m");
-        Collections.addAll(argsList, "-Dtest.classes=" + System.getProperty("test.classes","."));
+        Collections.addAll(argsList, "-Xbootclasspath/a:.");
+        Collections.addAll(argsList, "-XX:+UnlockDiagnosticVMOptions");
+        Collections.addAll(argsList, "-XX:+WhiteBoxAPI");
         Collections.addAll(argsList, ClassUnloadTestMain.class.getName());
-        return ProcessTools.createJavaProcessBuilder(argsList);
+        return ProcessTools.createLimitedTestJavaProcessBuilder(argsList);
     }
 
     public static void main(String... args) throws Exception {
@@ -66,11 +74,13 @@ public class LoaderConstraintsTest {
         // -Xlog:class+loader+constraints=info
         pb = exec("-Xlog:class+loader+constraints=info");
         out = new OutputAnalyzer(pb.start());
+        out.shouldHaveExitValue(0);
         out.shouldContain("[class,loader,constraints] adding new constraint for name: java/lang/Class, loader[0]: 'app', loader[1]: 'bootstrap'");
 
         // -Xlog:class+loader+constraints=off
         pb = exec("-Xlog:class+loader+constraints=off");
         out = new OutputAnalyzer(pb.start());
+        out.shouldHaveExitValue(0);
         out.shouldNotContain("[class,loader,constraints]");
 
     }

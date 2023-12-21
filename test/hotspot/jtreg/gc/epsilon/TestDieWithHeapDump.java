@@ -38,14 +38,14 @@ import jdk.test.lib.process.ProcessTools;
 public class TestDieWithHeapDump {
 
   public static void passWith(String... args) throws Exception {
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
+    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(args);
     OutputAnalyzer out = new OutputAnalyzer(pb.start());
     out.shouldNotContain("OutOfMemoryError");
     out.shouldHaveExitValue(0);
   }
 
   public static void failWith(String... args) throws Exception {
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
+    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(args);
     Process p = pb.start();
     OutputAnalyzer out = new OutputAnalyzer(p);
     out.shouldContain("OutOfMemoryError");
@@ -59,35 +59,27 @@ public class TestDieWithHeapDump {
   }
 
   public static void main(String[] args) throws Exception {
-    passWith("-Xmx128m",
+    passWith("-Xmx64m",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-Dcount=1",
              "-XX:+HeapDumpOnOutOfMemoryError",
              TestDieWithHeapDump.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-XX:+HeapDumpOnOutOfMemoryError",
              TestDieWithHeapDump.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xint",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-XX:+HeapDumpOnOutOfMemoryError",
              TestDieWithHeapDump.Workload.class.getName());
 
-    failWith("-Xmx128m",
-             "-Xbatch",
-             "-Xcomp",
-             "-XX:+UnlockExperimentalVMOptions",
-             "-XX:+UseEpsilonGC",
-             "-XX:+HeapDumpOnOutOfMemoryError",
-             TestDieWithHeapDump.Workload.class.getName());
-
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xbatch",
              "-Xcomp",
              "-XX:TieredStopAtLevel=1",
@@ -96,7 +88,7 @@ public class TestDieWithHeapDump {
              "-XX:+HeapDumpOnOutOfMemoryError",
              TestDieWithHeapDump.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xbatch",
              "-Xcomp",
              "-XX:-TieredCompilation",

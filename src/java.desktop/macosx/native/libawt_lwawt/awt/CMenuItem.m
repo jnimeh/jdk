@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,8 +23,6 @@
  * questions.
  */
 
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
-#include <Carbon/Carbon.h>
 #import "CMenuItem.h"
 #import "CMenu.h"
 #import "AWTEvent.h"
@@ -83,7 +81,7 @@
     // means we have to handle it here.
     NSEvent *currEvent = [[NSApplication sharedApplication] currentEvent];
 
-    if ([currEvent type] == NSKeyDown) {
+    if ([currEvent type] == NSEventTypeKeyDown) {
         // The action event can be ignored only if the key window is an AWT window.
         // Otherwise, the action event is the only notification and must be processed.
         NSWindow *keyWindow = [NSApp keyWindow];
@@ -313,7 +311,7 @@ Java_sun_lwawt_macosx_CMenuItem_nativeSetLabel
  jchar shortcutKey, jint shortcutKeyCode, jint mods)
 {
     JNI_COCOA_ENTER(env);
-    NSString *theLabel = JNFJavaToNSString(env, label);
+    NSString *theLabel = JavaStringToNSString(env, label);
     NSString *theKeyEquivalent = nil;
     unichar macKey = shortcutKey;
 
@@ -342,7 +340,7 @@ Java_sun_lwawt_macosx_CMenuItem_nativeSetTooltip
 (JNIEnv *env, jobject peer, jlong menuItemObj, jstring tooltip)
 {
     JNI_COCOA_ENTER(env);
-    NSString *theTooltip = JNFJavaToNSString(env, tooltip);
+    NSString *theTooltip = JavaStringToNSString(env, tooltip);
     [((CMenuItem *)jlong_to_ptr(menuItemObj)) setJavaToolTipText:theTooltip];
     JNI_COCOA_EXIT(env);
 }

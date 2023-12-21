@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,35 +25,51 @@
 package jdk.jpackage.internal;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class RetryExecutor {
-    RetryExecutor() {
+    public RetryExecutor() {
         setMaxAttemptsCount(5);
         setAttemptTimeoutMillis(2 * 1000);
+        setWriteOutputToFile(false);
     }
 
-    RetryExecutor setMaxAttemptsCount(int v) {
+    public RetryExecutor setMaxAttemptsCount(int v) {
         attempts = v;
         return this;
     }
 
-    RetryExecutor setAttemptTimeoutMillis(int v) {
+    public RetryExecutor setAttemptTimeoutMillis(int v) {
         timeoutMillis = v;
         return this;
     }
 
-    RetryExecutor setExecutorInitializer(Consumer<Executor> v) {
+    public RetryExecutor saveOutput(boolean v) {
+        saveOutput = v;
+        return this;
+    }
+
+    public List<String> getOutput() {
+        return output;
+    }
+
+    public RetryExecutor setWriteOutputToFile(boolean v) {
+        writeOutputToFile = v;
+        return this;
+    }
+
+    public RetryExecutor setExecutorInitializer(Consumer<Executor> v) {
         executorInitializer = v;
         return this;
     }
 
-    void abort() {
+    public void abort() {
         aborted = true;
     }
 
-    boolean isAborted() {
+    public boolean isAborted() {
         return aborted;
     }
 
@@ -68,12 +84,14 @@ public final class RetryExecutor {
         });
     }
 
-    void execute(String cmdline[]) throws IOException {
-        executeLoop(() -> Executor.of(cmdline));
+    public void execute(String cmdline[]) throws IOException {
+        executeLoop(() ->
+                Executor.of(cmdline).setWriteOutputToFile(writeOutputToFile));
     }
 
-    void execute(ProcessBuilder pb) throws IOException {
-        executeLoop(() -> Executor.of(pb));
+    public void execute(ProcessBuilder pb) throws IOException {
+        executeLoop(() ->
+                Executor.of(pb).setWriteOutputToFile(writeOutputToFile));
     }
 
     private void executeLoop(Supplier<Executor> execSupplier) throws IOException {
@@ -84,11 +102,14 @@ public final class RetryExecutor {
             }
 
             try {
-                Executor exec = execSupplier.get();
+                Executor exec = execSupplier.get().saveOutput(saveOutput);
                 if (executorInitializer != null) {
                     executorInitializer.accept(exec);
                 }
                 exec.executeExpectSuccess();
+                if (saveOutput) {
+                    output = exec.getOutput();
+                }
                 break;
             } catch (IOException ex) {
                 if (aborted || (--attempts) <= 0) {
@@ -109,4 +130,7 @@ public final class RetryExecutor {
     private boolean aborted;
     private int attempts;
     private int timeoutMillis;
+    private boolean saveOutput;
+    private List<String> output;
+    private boolean writeOutputToFile;
 }

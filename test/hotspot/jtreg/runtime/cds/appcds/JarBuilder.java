@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -36,6 +36,7 @@ import jdk.test.lib.cds.CDSTestUtils;
 import jdk.test.lib.compiler.CompilerUtils;
 import jdk.test.lib.process.OutputAnalyzer;
 import jdk.test.lib.process.ProcessTools;
+import jdk.test.lib.helpers.ClassFileInstaller;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -130,14 +131,15 @@ public class JarBuilder {
     }
 
     // Add commonly used inner classes that are often omitted by mistake. Currently
-    // we support only sun/hotspot/WhiteBox$WhiteBoxPermission. See JDK-8199290
+    // we support only jdk/test/whitebox/WhiteBox$WhiteBoxPermission.
+    // See JDK-8199290
     private static String[] addInnerClasses(String[] classes, int startIdx) {
-        boolean seenWB = false;
-        boolean seenWBInner = false;
+        boolean seenNewWb = false;
+        boolean seenNewWbInner = false;
         // This method is different than ClassFileInstaller.addInnerClasses which
         // uses "." as the package delimiter :-(
-        final String wb = "sun/hotspot/WhiteBox";
-        final String wbInner = "sun/hotspot/WhiteBox$WhiteBoxPermission";
+        final String newWb = "jdk/test/whitebox/WhiteBox";
+        final String newWbInner = newWb + "$WhiteBoxPermission";
 
         ArrayList<String> list = new ArrayList<>();
 
@@ -145,14 +147,13 @@ public class JarBuilder {
             String cls = classes[i];
             list.add(cls);
             switch (cls) {
-            case wb:      seenWB      = true; break;
-            case wbInner: seenWBInner = true; break;
+            case newWb:      seenNewWb      = true; break;
+            case newWbInner: seenNewWbInner = true; break;
             }
         }
-        if (seenWB && !seenWBInner) {
-            list.add(wbInner);
+        if (seenNewWb && !seenNewWbInner) {
+            list.add(newWbInner);
         }
-
         String[] array = new String[list.size()];
         list.toArray(array);
         return array;
@@ -258,21 +259,36 @@ public class JarBuilder {
         }
     }
 
+    static final String keyTool = JDKToolFinder.getJDKTool("keytool");
+    static final String jarSigner = JDKToolFinder.getJDKTool("jarsigner");
 
-    public static void signJar() throws Exception {
-        String keyTool = JDKToolFinder.getJDKTool("keytool");
-        String jarSigner = JDKToolFinder.getJDKTool("jarsigner");
-
+    public static void signJarWithDisabledAlgorithm(String jarName) throws Exception {
+        String keyName = "key_with_disabled_alg";
         executeProcess(keyTool,
-            "-genkey", "-keystore", "./keystore", "-alias", "mykey",
+            "-genkey", "-keystore", "./keystore", "-alias", keyName,
+            "-storepass", "abc123", "-keypass", "abc123", "-keyalg", "dsa",
+            "-sigalg", "SHA1withDSA", "-keysize", "512", "-dname", "CN=jvmtest2")
+            .shouldHaveExitValue(0);
+
+        doSigning(jarName, keyName);
+    }
+
+    public static void signJar(String jarName) throws Exception {
+        String keyName = "mykey";
+        executeProcess(keyTool,
+            "-genkey", "-keystore", "./keystore", "-alias", keyName,
             "-storepass", "abc123", "-keypass", "abc123", "-keyalg", "dsa",
             "-dname", "CN=jvmtest")
             .shouldHaveExitValue(0);
 
+        doSigning(jarName, keyName);
+    }
+
+    private static void doSigning(String jarName, String keyName) throws Exception {
         executeProcess(jarSigner,
            "-keystore", "./keystore", "-storepass", "abc123", "-keypass",
-           "abc123", "-signedjar", getJarFilePath("signed_hello"),
-           getJarFilePath("hello"), "mykey")
+           "abc123", "-signedjar", getJarFilePath("signed_" + jarName),
+           getJarFilePath(jarName), keyName)
            .shouldHaveExitValue(0);
     }
 

@@ -39,7 +39,7 @@ public class TestDieWithOnError {
   static String ON_ERR_MSG = "Epsilon error handler message";
 
   public static void passWith(String... args) throws Exception {
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
+    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(args);
     OutputAnalyzer out = new OutputAnalyzer(pb.start());
     out.shouldNotContain("OutOfMemoryError");
     out.stdoutShouldNotMatch("^" + ON_ERR_MSG);
@@ -47,7 +47,7 @@ public class TestDieWithOnError {
   }
 
   public static void failWith(String... args) throws Exception {
-    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(args);
+    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(args);
     OutputAnalyzer out = new OutputAnalyzer(pb.start());
     out.shouldContain("OutOfMemoryError");
     if (out.getExitValue() == 0) {
@@ -57,35 +57,27 @@ public class TestDieWithOnError {
   }
 
   public static void main(String[] args) throws Exception {
-    passWith("-Xmx128m",
+    passWith("-Xmx64m",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-Dcount=1",
              "-XX:OnOutOfMemoryError=echo " + ON_ERR_MSG,
              TestDieWithOnError.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-XX:OnOutOfMemoryError=echo " + ON_ERR_MSG,
              TestDieWithOnError.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xint",
              "-XX:+UnlockExperimentalVMOptions",
              "-XX:+UseEpsilonGC",
              "-XX:OnOutOfMemoryError=echo " + ON_ERR_MSG,
              TestDieWithOnError.Workload.class.getName());
 
-    failWith("-Xmx128m",
-             "-Xbatch",
-             "-Xcomp",
-             "-XX:+UnlockExperimentalVMOptions",
-             "-XX:+UseEpsilonGC",
-             "-XX:OnOutOfMemoryError=echo " + ON_ERR_MSG,
-             TestDieWithOnError.Workload.class.getName());
-
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xbatch",
              "-Xcomp",
              "-XX:TieredStopAtLevel=1",
@@ -94,7 +86,7 @@ public class TestDieWithOnError {
              "-XX:OnOutOfMemoryError=echo " + ON_ERR_MSG,
              TestDieWithOnError.Workload.class.getName());
 
-    failWith("-Xmx128m",
+    failWith("-Xmx64m",
              "-Xbatch",
              "-Xcomp",
              "-XX:-TieredCompilation",

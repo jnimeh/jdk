@@ -23,7 +23,7 @@
  */
 
 /*
- * @test TestThreadCounts
+ * @test
  * @summary Test that Shenandoah GC thread counts are handled well
  * @requires vm.gc.Shenandoah
  * @library /test/lib
@@ -45,7 +45,7 @@ public class TestThreadCounts {
     }
 
     private static void testWith(int conc, int par) throws Exception {
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
+        ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(
                 "-Xmx128m",
                 "-XX:+UnlockDiagnosticVMOptions",
                 "-XX:+UnlockExperimentalVMOptions",

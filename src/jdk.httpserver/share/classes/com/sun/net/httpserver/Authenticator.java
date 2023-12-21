@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2006, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,6 +32,8 @@ package com.sun.net.httpserver;
  * of the authentication information provided in all incoming requests.
  * Note. This implies that any caching of credentials or other authentication
  * information must be done outside of this class.
+ *
+ * @since 1.6
  */
 public abstract class Authenticator {
 
@@ -151,7 +153,7 @@ public abstract class Authenticator {
      *     is required. Any response headers needing to be sent back to the client are set
      *     in the given {@code HttpExchange}. The response code to be returned must be
      *     provided in the {@code Retry} object. {@code Retry} may occur multiple times.
-     * <ul/>
+     * </ul>
      *
      * @param exch the {@code HttpExchange} upon which authenticate is called
      * @return the result

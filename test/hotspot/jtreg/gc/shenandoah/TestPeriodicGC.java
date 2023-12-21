@@ -23,7 +23,7 @@
  */
 
 /*
- * @test TestPeriodicGC
+ * @test
  * @summary Test that periodic GC is working
  * @requires vm.gc.Shenandoah
  * @library /test/lib
@@ -42,7 +42,7 @@ public class TestPeriodicGC {
         String[] cmds = Arrays.copyOf(args, args.length + 2);
         cmds[args.length] = TestPeriodicGC.class.getName();
         cmds[args.length + 1] = "test";
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(cmds);
+        ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(cmds);
 
         OutputAnalyzer output = new OutputAnalyzer(pb.start());
         output.shouldHaveExitValue(0);

@@ -29,7 +29,9 @@
 #include "gc/shenandoah/shenandoahPacer.hpp"
 #include "gc/shenandoah/shenandoahPhaseTimings.hpp"
 #include "runtime/atomic.hpp"
+#include "runtime/javaThread.inline.hpp"
 #include "runtime/mutexLocker.hpp"
+#include "runtime/threadSMR.hpp"
 
 /*
  * In normal concurrent cycle, we have to pace the application to let GC finish.
@@ -179,7 +181,7 @@ size_t ShenandoahPacer::update_and_get_progress_history() {
 void ShenandoahPacer::restart_with(size_t non_taxable_bytes, double tax_rate) {
   size_t initial = (size_t)(non_taxable_bytes * tax_rate) >> LogHeapWordSize;
   STATIC_ASSERT(sizeof(size_t) <= sizeof(intptr_t));
-  Atomic::xchg(&_budget, (intptr_t)initial);
+  Atomic::xchg(&_budget, (intptr_t)initial, memory_order_relaxed);
   Atomic::store(&_tax_rate, tax_rate);
   Atomic::inc(&_epoch);
 
@@ -201,14 +203,14 @@ bool ShenandoahPacer::claim_for_alloc(size_t words, bool force) {
       return false;
     }
     new_val = cur - tax;
-  } while (Atomic::cmpxchg(&_budget, cur, new_val) != cur);
+  } while (Atomic::cmpxchg(&_budget, cur, new_val, memory_order_relaxed) != cur);
   return true;
 }
 
 void ShenandoahPacer::unpace_for_alloc(intptr_t epoch, size_t words) {
   assert(ShenandoahPacing, "Only be here when pacing is enabled");
 
-  if (_epoch != epoch) {
+  if (Atomic::load(&_epoch) != epoch) {
     // Stale ticket, no need to unpace.
     return;
   }
@@ -240,7 +242,13 @@ void ShenandoahPacer::pace_for_alloc(size_t words) {
   // Threads that are attaching should not block at all: they are not
   // fully initialized yet. Blocking them would be awkward.
   // This is probably the path that allocates the thread oop itself.
-  if (JavaThread::current()->is_attaching_via_jni()) {
+  //
+  // Thread which is not an active Java thread should also not block.
+  // This can happen during VM init when main thread is still not an
+  // active Java thread.
+  JavaThread* current = JavaThread::current();
+  if (current->is_attaching_via_jni() ||
+      !current->is_active_Java_thread()) {
     return;
   }
 

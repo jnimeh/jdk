@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -511,6 +512,22 @@ public class FileHandler extends StreamHandler {
                         channel = FileChannel.open(lockFilePath,
                                 CREATE_NEW, WRITE);
                         fileCreated = true;
+                    } catch (AccessDeniedException ade) {
+                        // This can be either a temporary, or a more permanent issue.
+                        // The lock file might be still pending deletion from a previous run
+                        // (temporary), or the parent directory might not be accessible,
+                        // not writable, etc..
+                        // If we can write to the current directory, and this is a regular file,
+                        // let's try again.
+                        if (Files.isRegularFile(lockFilePath, LinkOption.NOFOLLOW_LINKS)
+                            && isParentWritable(lockFilePath)) {
+                            // Try again. If it doesn't work, then this will
+                            // eventually ensure that we increment "unique" and
+                            // use another file name.
+                            continue;
+                        } else {
+                            throw ade; // no need to retry
+                        }
                     } catch (FileAlreadyExistsException ix) {
                         // This may be a zombie file left over by a previous
                         // execution. Reuse it - but only if we can actually
@@ -711,7 +728,21 @@ public class FileHandler extends StreamHandler {
     /**
      * Rotate the set of output files
      */
-    private synchronized void rotate() {
+    private void rotate() {
+        if (tryUseLock()) {
+            try {
+                rotate0();
+            } finally {
+                unlock();
+            }
+        } else {
+            synchronized (this) {
+                rotate0();
+            }
+        }
+    }
+
+    private void rotate0() {
         Level oldLevel = getLevel();
         setLevel(Level.OFF);
 
@@ -744,7 +775,22 @@ public class FileHandler extends StreamHandler {
      *                 silently ignored and is not published
      */
     @Override
-    public synchronized void publish(LogRecord record) {
+    public void publish(LogRecord record) {
+        if (tryUseLock()) {
+            try {
+                publish0(record);
+            } finally {
+                unlock();
+            }
+        } else {
+            synchronized (this) {
+                publish0(record);
+            }
+        }
+
+    }
+    @SuppressWarnings("removal")
+    private void publish0(LogRecord record) {
         if (!isLoggable(record)) {
             return;
         }
@@ -773,7 +819,21 @@ public class FileHandler extends StreamHandler {
      *             the caller does not have {@code LoggingPermission("control")}.
      */
     @Override
-    public synchronized void close() throws SecurityException {
+    public void close() throws SecurityException {
+        if (tryUseLock()) {
+            try {
+                close0();
+            } finally {
+                unlock();
+            }
+        } else {
+            synchronized (this) {
+                close0();
+            }
+        }
+    }
+
+    private void close0() throws SecurityException {
         super.close();
         // Unlock any lock file.
         if (lockFileName == null) {

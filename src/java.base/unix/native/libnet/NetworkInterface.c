@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -101,7 +101,6 @@ jfieldID ni_bindsID;
 jfieldID ni_virutalID;
 jfieldID ni_childsID;
 jfieldID ni_parentID;
-jfieldID ni_defaultIndexID;
 jmethodID ni_ctrID;
 
 static jclass ni_ibcls;
@@ -187,9 +186,7 @@ JNIEXPORT void JNICALL Java_java_net_NetworkInterface_init
     CHECK_NULL(ni_ib4broadcastID);
     ni_ib4maskID = (*env)->GetFieldID(env, ni_ibcls, "maskLength", "S");
     CHECK_NULL(ni_ib4maskID);
-    ni_defaultIndexID = (*env)->GetStaticFieldID(env, ni_class, "defaultIndex",
-                                                 "I");
-    CHECK_NULL(ni_defaultIndexID);
+
     initInetAddressIDs(env);
 }
 
@@ -503,6 +500,7 @@ JNIEXPORT jobjectArray JNICALL Java_java_net_NetworkInterface_getAll
 
         // put the NetworkInterface into the array
         (*env)->SetObjectArrayElement(env, netIFArr, arr_index++, netifObj);
+        (*env)->DeleteLocalRef(env, netifObj);
 
         curr = curr->next;
     }
@@ -703,7 +701,6 @@ static jobject createNetworkInterface(JNIEnv *env, netif *ifs) {
     jobjectArray addrArr;
     jobjectArray bindArr;
     jobjectArray childArr;
-    netaddr *addrs;
     jint addr_index, addr_count, bind_index;
     jint child_count, child_index;
     netaddr *addrP;
@@ -766,12 +763,14 @@ static jobject createNetworkInterface(JNIEnv *env, netif *ifs) {
                             ((struct sockaddr_in*)addrP->brdcast)->sin_addr.s_addr));
                         JNU_CHECK_EXCEPTION_RETURN(env, NULL);
                         (*env)->SetObjectField(env, ibObj, ni_ib4broadcastID, ia2Obj);
+                        (*env)->DeleteLocalRef(env, ia2Obj);
                     } else {
                         return NULL;
                     }
                 }
                 (*env)->SetShortField(env, ibObj, ni_ib4maskID, addrP->mask);
                 (*env)->SetObjectArrayElement(env, bindArr, bind_index++, ibObj);
+                (*env)->DeleteLocalRef(env, ibObj);
             } else {
                 return NULL;
             }
@@ -800,12 +799,14 @@ static jobject createNetworkInterface(JNIEnv *env, netif *ifs) {
                 (*env)->SetObjectField(env, ibObj, ni_ibaddressID, iaObj);
                 (*env)->SetShortField(env, ibObj, ni_ib4maskID, addrP->mask);
                 (*env)->SetObjectArrayElement(env, bindArr, bind_index++, ibObj);
+                (*env)->DeleteLocalRef(env, ibObj);
             } else {
                 return NULL;
             }
         }
 
         (*env)->SetObjectArrayElement(env, addrArr, addr_index++, iaObj);
+        (*env)->DeleteLocalRef(env, iaObj);
         addrP = addrP->next;
     }
 
@@ -837,6 +838,11 @@ static jobject createNetworkInterface(JNIEnv *env, netif *ifs) {
     (*env)->SetObjectField(env, netifObj, ni_addrsID, addrArr);
     (*env)->SetObjectField(env, netifObj, ni_bindsID, bindArr);
     (*env)->SetObjectField(env, netifObj, ni_childsID, childArr);
+
+    (*env)->DeleteLocalRef(env, name);
+    (*env)->DeleteLocalRef(env, addrArr);
+    (*env)->DeleteLocalRef(env, bindArr);
+    (*env)->DeleteLocalRef(env, childArr);
 
     // return the NetworkInterface
     return netifObj;
@@ -892,7 +898,6 @@ static netif *enumInterfaces(JNIEnv *env) {
  */
 static void freeif(netif *ifs) {
     netif *currif = ifs;
-    netif *child = NULL;
 
     while (currif != NULL) {
         netaddr *addrP = currif->addr;
@@ -1261,7 +1266,7 @@ static netif *enumIPv6Interfaces(JNIEnv *env, int sock, netif *ifs) {
             char addr6[40];
             struct sockaddr_in6 addr;
 
-            sprintf(addr6, "%s:%s:%s:%s:%s:%s:%s:%s",
+            snprintf(addr6, sizeof(addr6), "%s:%s:%s:%s:%s:%s:%s:%s",
                     addr6p[0], addr6p[1], addr6p[2], addr6p[3],
                     addr6p[4], addr6p[5], addr6p[6], addr6p[7]);
 

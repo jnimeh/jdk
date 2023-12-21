@@ -23,7 +23,7 @@
  */
 
 /**
- * @test TestThreadFailure
+ * @test
  * @summary Test OOME in separate thread is recoverable
  * @requires vm.gc.Shenandoah
  * @library /test/lib
@@ -62,7 +62,7 @@ public class TestThreadFailure {
         }
 
         {
-            ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(
+            ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(
                     "-Xmx32m",
                     "-XX:+UnlockExperimentalVMOptions",
                     "-XX:+UseShenandoahGC",

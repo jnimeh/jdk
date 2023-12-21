@@ -23,7 +23,7 @@
  */
 
 /*
- * @test TestClassUnloadingArguments
+ * @test
  * @summary Test that loop mining arguments are sane
  * @requires vm.gc.Shenandoah
  * @library /test/lib
@@ -43,7 +43,7 @@ public class TestClassUnloadingArguments {
         cmds[args.length] = "-Xmx128m";
         cmds[args.length + 1] = "-XX:+PrintFlagsFinal";
         cmds[args.length + 2] = "-version";
-        ProcessBuilder pb = ProcessTools.createJavaProcessBuilder(cmds);
+        ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder(cmds);
         OutputAnalyzer output = new OutputAnalyzer(pb.start());
         output.shouldHaveExitValue(0);
         output.shouldContain("ClassUnloading");

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2021, Red Hat, Inc. All rights reserved.
+ * Copyright (c) 2013, 2022, Red Hat, Inc. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,16 +23,14 @@
  */
 
 #include "precompiled.hpp"
-#include "gc/shenandoah/shenandoahAsserts.hpp"
-#include "gc/shenandoah/shenandoahClosures.inline.hpp"
-#include "gc/shenandoah/shenandoahBarrierSet.hpp"
+#include "gc/shared/barrierSetNMethod.hpp"
 #include "gc/shenandoah/shenandoahBarrierSetClone.inline.hpp"
 #include "gc/shenandoah/shenandoahBarrierSetAssembler.hpp"
 #include "gc/shenandoah/shenandoahBarrierSetNMethod.hpp"
+#include "gc/shenandoah/shenandoahBarrierSetStackChunk.hpp"
+#include "gc/shenandoah/shenandoahClosures.inline.hpp"
 #include "gc/shenandoah/shenandoahHeap.inline.hpp"
 #include "gc/shenandoah/shenandoahStackWatermark.hpp"
-#include "memory/iterator.inline.hpp"
-#include "runtime/interfaceSupport.inline.hpp"
 #ifdef COMPILER1
 #include "gc/shenandoah/c1/shenandoahBarrierSetC1.hpp"
 #endif
@@ -48,6 +46,7 @@ ShenandoahBarrierSet::ShenandoahBarrierSet(ShenandoahHeap* heap) :
              make_barrier_set_c1<ShenandoahBarrierSetC1>(),
              make_barrier_set_c2<ShenandoahBarrierSetC2>(),
              new ShenandoahBarrierSetNMethod(heap),
+             new ShenandoahBarrierSetStackChunk(),
              BarrierSet::FakeRtti(BarrierSet::ShenandoahBarrierSet)),
   _heap(heap),
   _satb_mark_queue_buffer_allocator("SATB Buffer Allocator", ShenandoahSATBBufferSize),
@@ -64,21 +63,13 @@ void ShenandoahBarrierSet::print_on(outputStream* st) const {
   st->print("ShenandoahBarrierSet");
 }
 
-bool ShenandoahBarrierSet::is_a(BarrierSet::Name bsn) {
-  return bsn == BarrierSet::ShenandoahBarrierSet;
-}
-
-bool ShenandoahBarrierSet::is_aligned(HeapWord* hw) {
-  return true;
-}
-
 bool ShenandoahBarrierSet::need_load_reference_barrier(DecoratorSet decorators, BasicType type) {
   if (!ShenandoahLoadRefBarrier) return false;
   // Only needed for references
   return is_reference_type(type);
 }
 
-bool ShenandoahBarrierSet::need_keep_alive_barrier(DecoratorSet decorators,BasicType type) {
+bool ShenandoahBarrierSet::need_keep_alive_barrier(DecoratorSet decorators, BasicType type) {
   if (!ShenandoahSATBBarrier) return false;
   // Only needed for references
   if (!is_reference_type(type)) return false;
@@ -110,11 +101,17 @@ void ShenandoahBarrierSet::on_thread_attach(Thread *thread) {
   if (thread->is_Java_thread()) {
     ShenandoahThreadLocalData::set_gc_state(thread, _heap->gc_state());
     ShenandoahThreadLocalData::initialize_gclab(thread);
-    ShenandoahThreadLocalData::set_disarmed_value(thread, ShenandoahCodeRoots::disarmed_value());
 
-    JavaThread* const jt = thread->as_Java_thread();
-    StackWatermark* const watermark = new ShenandoahStackWatermark(jt);
-    StackWatermarkSet::add_watermark(jt, watermark);
+    BarrierSetNMethod* bs_nm = barrier_set_nmethod();
+    if (bs_nm != nullptr) {
+      thread->set_nmethod_disarmed_guard_value(bs_nm->disarmed_guard_value());
+    }
+
+    if (ShenandoahStackWatermarkBarrier) {
+      JavaThread* const jt = JavaThread::cast(thread);
+      StackWatermark* const watermark = new ShenandoahStackWatermark(jt);
+      StackWatermarkSet::add_watermark(jt, watermark);
+    }
   }
 }
 
@@ -123,18 +120,19 @@ void ShenandoahBarrierSet::on_thread_detach(Thread *thread) {
   _satb_mark_queue_set.flush_queue(queue);
   if (thread->is_Java_thread()) {
     PLAB* gclab = ShenandoahThreadLocalData::gclab(thread);
-    if (gclab != NULL) {
+    if (gclab != nullptr) {
       gclab->retire();
     }
 
-    // SATB protocol requires to keep alive reacheable oops from roots at the beginning of GC
-    ShenandoahHeap* const heap = ShenandoahHeap::heap();
-    if (heap->is_concurrent_mark_in_progress()) {
-      ShenandoahKeepAliveClosure oops;
-      StackWatermarkSet::finish_processing(thread->as_Java_thread(), &oops, StackWatermarkKind::gc);
-    } else if (heap->is_concurrent_weak_root_in_progress() && heap->is_evacuation_in_progress()) {
-      ShenandoahContextEvacuateUpdateRootsClosure oops;
-      StackWatermarkSet::finish_processing(thread->as_Java_thread(), &oops, StackWatermarkKind::gc);
+    // SATB protocol requires to keep alive reachable oops from roots at the beginning of GC
+    if (ShenandoahStackWatermarkBarrier) {
+      if (_heap->is_concurrent_mark_in_progress()) {
+        ShenandoahKeepAliveClosure oops;
+        StackWatermarkSet::finish_processing(JavaThread::cast(thread), &oops, StackWatermarkKind::gc);
+      } else if (_heap->is_concurrent_weak_root_in_progress() && _heap->is_evacuation_in_progress()) {
+        ShenandoahContextEvacuateUpdateRootsClosure oops;
+        StackWatermarkSet::finish_processing(JavaThread::cast(thread), &oops, StackWatermarkKind::gc);
+      }
     }
   }
 }

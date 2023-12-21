@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2003, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -35,17 +35,17 @@ class CharacterDataPrivateUse extends CharacterData {
     }
 
     int getType(int ch) {
-	return (ch & 0xFFFE) == 0xFFFE
-	    ? Character.UNASSIGNED
-	    : Character.PRIVATE_USE;
+        return (ch & 0xFFFE) == 0xFFFE
+            ? Character.UNASSIGNED
+            : Character.PRIVATE_USE;
     }
 
     boolean isJavaIdentifierStart(int ch) {
-	return false;
+        return false;
     }
 
     boolean isJavaIdentifierPart(int ch) {
-	return false;
+        return false;
     }
 
     boolean isUnicodeIdentifierStart(int ch) {
@@ -57,6 +57,30 @@ class CharacterDataPrivateUse extends CharacterData {
     }
 
     boolean isIdentifierIgnorable(int ch) {
+        return false;
+    }
+
+    boolean isEmoji(int ch) {
+        return false;
+    }
+
+    boolean isEmojiPresentation(int ch) {
+        return false;
+    }
+
+    boolean isEmojiModifier(int ch) {
+        return false;
+    }
+
+    boolean isEmojiModifierBase(int ch) {
+        return false;
+    }
+
+    boolean isEmojiComponent(int ch) {
+        return false;
+    }
+
+    boolean isExtendedPictographic(int ch) {
         return false;
     }
 
@@ -85,21 +109,21 @@ class CharacterDataPrivateUse extends CharacterData {
     }
 
     boolean isLowerCase(int ch) {
-	return false;
+        return false;
     }
 
     boolean isUpperCase(int ch) {
-	return false;
+        return false;
     }
 
     boolean isWhitespace(int ch) {
-	return false;
+        return false;
     }
 
     byte getDirectionality(int ch) {
-	return (ch & 0xFFFE) == 0xFFFE
-	    ? Character.DIRECTIONALITY_UNDEFINED
-	    : Character.DIRECTIONALITY_LEFT_TO_RIGHT;
+        return (ch & 0xFFFE) == 0xFFFE
+            ? Character.DIRECTIONALITY_UNDEFINED
+            : Character.DIRECTIONALITY_LEFT_TO_RIGHT;
     }
 
     boolean isMirrored(int ch) {
@@ -109,5 +133,3 @@ class CharacterDataPrivateUse extends CharacterData {
     static final CharacterData instance = new CharacterDataPrivateUse();
     private CharacterDataPrivateUse() {};
 }
-
-	

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2000, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -35,12 +35,9 @@ import sun.jvm.hotspot.utilities.*;
 import sun.jvm.hotspot.utilities.Observable;
 import sun.jvm.hotspot.utilities.Observer;
 
-abstract public class GenCollectedHeap extends CollectedHeap {
+public abstract class GenCollectedHeap extends CollectedHeap {
   private static AddressField youngGenField;
   private static AddressField oldGenField;
-
-  private static AddressField youngGenSpecField;
-  private static AddressField oldGenSpecField;
 
   private static GenerationFactory genFactory;
 
@@ -57,8 +54,6 @@ abstract public class GenCollectedHeap extends CollectedHeap {
 
     youngGenField = type.getAddressField("_young_gen");
     oldGenField = type.getAddressField("_old_gen");
-    youngGenSpecField = type.getAddressField("_young_gen_spec");
-    oldGenSpecField = type.getAddressField("_old_gen_spec");
 
     genFactory = new GenerationFactory();
   }
@@ -113,28 +108,6 @@ abstract public class GenCollectedHeap extends CollectedHeap {
       used += getGen(i).used();
     }
     return used;
-  }
-
-  /** Package-private access to GenerationSpecs */
-  GenerationSpec spec(int level) {
-    if (Assert.ASSERTS_ENABLED) {
-      Assert.that((level == 0) || (level == 1), "Index " + level +
-                  " out of range (should be 0 or 1)");
-    }
-
-    if ((level != 0) && (level != 1)) {
-      return null;
-    }
-
-    if (level == 0) {
-      return (GenerationSpec)
-              VMObjectFactory.newObject(GenerationSpec.class,
-                      youngGenSpecField.getAddress());
-    } else {
-      return (GenerationSpec)
-              VMObjectFactory.newObject(GenerationSpec.class,
-                      oldGenSpecField.getAddress());
-    }
   }
 
   public void liveRegionsIterate(LiveRegionsClosure closure) {

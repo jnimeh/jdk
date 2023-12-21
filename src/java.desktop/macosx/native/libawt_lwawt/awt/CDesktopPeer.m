@@ -27,7 +27,6 @@
 #import "JNIUtilities.h"
 #import <CoreFoundation/CoreFoundation.h>
 #import <ApplicationServices/ApplicationServices.h>
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
 
 /*
  * Class:     sun_lwawt_macosx_CDesktopPeer
@@ -43,7 +42,7 @@ JNI_COCOA_ENTER(env);
     // I would love to use NSWorkspace here, but it's not thread safe. Why? I don't know.
     // So we use LaunchServices directly.
 
-    NSURL *url = [NSURL URLWithString:JNFJavaToNSString(env, uri)];
+    NSURL *url = [NSURL URLWithString:JavaStringToNSString(env, uri)];
 
     LSLaunchFlags flags = kLSLaunchDefaults;
 
@@ -68,11 +67,11 @@ JNI_COCOA_ENTER(env);
     // I would love to use NSWorkspace here, but it's not thread safe. Why? I don't know.
     // So we use LaunchServices directly.
 
-    NSString *path  = JNFNormalizedNSStringForPath(env, jpath);
+    NSString *path  = NormalizedPathNSStringFromJavaString(env, jpath);
 
     NSURL *url = [NSURL fileURLWithPath:(NSString *)path];
 
-    // This byzantine workaround is necesary, or else directories won't open in Finder
+    // This byzantine workaround is necessary, or else directories won't open in Finder
     url = (NSURL *)CFURLCreateWithFileSystemPath(NULL, (CFStringRef)[url path], kCFURLPOSIXPathStyle, false);
 
     LSLaunchFlags flags = kLSLaunchDefaults;

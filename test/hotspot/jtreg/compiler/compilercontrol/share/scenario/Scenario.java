@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -49,18 +49,21 @@ import java.util.function.Consumer;
  */
 public final class Scenario {
     private final boolean isValid;
+    private final boolean isJcmdValid;
     private final Map<Executable, State> states;
     private final List<Consumer<OutputAnalyzer>> processors;
     private final Executor executor;
     private final Consumer<List<OutputAnalyzer>> jcmdProcessor;
 
     private Scenario(boolean isValid,
+                     boolean isJcmdValid,
                      List<String> vmopts,
                      Map<Executable, State> states,
                      List<CompileCommand> compileCommands,
                      List<JcmdCommand> jcmdCommands,
                      List<CompileCommand> directives) {
         this.isValid = isValid;
+        this.isJcmdValid = isJcmdValid;
         this.states = states;
         processors = new ArrayList<>();
         processors.add(new LogProcessor(states));
@@ -101,7 +104,7 @@ public final class Scenario {
             jcmdExecCommands.add(JcmdType.PRINT.command);
         }
         jcmdProcessor = new PrintDirectivesProcessor(directives);
-        executor = new Executor(isValid, vmopts, states, jcmdExecCommands);
+        executor = new Executor(vmopts, states, jcmdExecCommands);
     }
 
     /**
@@ -119,13 +122,17 @@ public final class Scenario {
             last.add(outputList.get(outputList.size() - 1));
             jcmdProcessor.accept(last);
         } else {
-            // two cases for invalid inputs.
-            if (mainOutput.getExitValue() == 0) {
+            Asserts.assertNE(mainOutput.getExitValue(), 0, "VM should exit with "
+                    + "error for incorrect directives");
+            boolean parse_error_found = false;
+            for (OutputAnalyzer out : outputList) {
+                if (out.getOutput().contains("Parsing of compiler directives failed")) {
+                    parse_error_found = true;
+                    break;
+                }
+            }
+            if (!parse_error_found) {
                 mainOutput.shouldContain("CompileCommand: An error occurred during parsing");
-            } else {
-                Asserts.assertNE(mainOutput.getExitValue(), 0, "VM should exit with "
-                        + "error for incorrect directives");
-                mainOutput.shouldContain("Parsing of compiler directives failed");
             }
         }
     }
@@ -174,30 +181,30 @@ public final class Scenario {
         DIRECTIVE("directives.json"),
         JCMD("jcmd_directives.json") {
             @Override
-            public CompileCommand createCompileCommand(Command command,
+            public CompileCommand createCompileCommand(Command command, boolean isValid,
                     MethodDescriptor md, Compiler compiler) {
-                return new JcmdCommand(command, md, compiler, this,
+                return new JcmdCommand(command, isValid, md, compiler, this,
                         JcmdType.ADD);
             }
 
             @Override
-            public CompileCommand createCompileCommand(Command command,
+            public CompileCommand createCompileCommand(Command command, boolean isValid,
                     MethodDescriptor md, Compiler compiler, String argument) {
-                return new JcmdCommand(command, md, compiler, this,
+                return new JcmdCommand(command, isValid, md, compiler, this,
                         JcmdType.ADD, argument);
             }
         };
 
         public final String fileName;
 
-        public CompileCommand createCompileCommand(Command command,
+        public CompileCommand createCompileCommand(Command command, boolean isValid,
                 MethodDescriptor md, Compiler compiler) {
-            return new CompileCommand(command, md, compiler, this);
+            return new CompileCommand(command, isValid, md, compiler, this);
         }
 
-        public CompileCommand createCompileCommand(Command command,
+        public CompileCommand createCompileCommand(Command command, boolean isValid,
                 MethodDescriptor md, Compiler compiler, String argument) {
-            return new CompileCommand(command, md, compiler, this, argument);
+            return new CompileCommand(command, isValid, md, compiler, this, argument);
         }
 
         private Type(String fileName) {
@@ -253,6 +260,7 @@ public final class Scenario {
 
         public Scenario build() {
             boolean isValid = true;
+            boolean isJcmdValid = true;
 
             // Get states from each of the state builders
             Map<Executable, State> commandFileStates
@@ -315,6 +323,7 @@ public final class Scenario {
                 options.addAll(builder.getOptions());
                 isValid &= builder.isValid();
             }
+            isJcmdValid = jcmdStateBuilder.isFileValid;
             options.addAll(jcmdStateBuilder.getOptions());
 
             /*
@@ -328,7 +337,7 @@ public final class Scenario {
                         .forEach(entry -> entry.getValue().setLog(true));
             }
 
-            return new Scenario(isValid, options, finalStates, ccList,
+            return new Scenario(isValid, isJcmdValid, options, finalStates, ccList,
                     jcmdCommands, directives);
         }
 

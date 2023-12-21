@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -167,7 +167,7 @@ Display * dpy = NULL;
 
 static void DestroyXIMCallback(XIM, XPointer, XPointer);
 static void OpenXIMCallback(Display *, XPointer, XPointer);
-/* Solaris XIM Extention */
+/* Solaris XIM Extension */
 #define XNCommitStringCallback "commitStringCallback"
 static void CommitStringCallback(XIC, XPointer, XPointer);
 
@@ -1013,7 +1013,7 @@ createXIC(JNIEnv * env, X11InputMethodData *pX11IMData, Window w)
         }
     }
 
-    // The code set the IC mode that the preedit state is not initialied
+    // The code set the IC mode that the preedit state is not initialized
     // at XmbResetIC.  This attribute can be set at XCreateIC.  I separately
     // set the attribute to avoid the failure of XCreateIC at some platform
     // which does not support the attribute.
@@ -1235,8 +1235,12 @@ StatusDrawCallback(XIC ic, XPointer client_data,
                 statusWindow->status[MAX_STATUS_LEN - 1] = '\0';
             } else {
                 char *mbstr = wcstombsdmp(text->string.wide_char, text->length);
+                if (mbstr == NULL) {
+                    goto finally;
+                }
                 strncpy(statusWindow->status, mbstr, MAX_STATUS_LEN);
                 statusWindow->status[MAX_STATUS_LEN - 1] = '\0';
+                free(mbstr);
             }
             statusWindow->on = True;
             onoffStatusWindow(pX11IMData, statusWindow->parent, True);

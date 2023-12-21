@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,23 +26,26 @@
  * halfsiphash code adapted from reference implementation
  * (https://github.com/veorq/SipHash/blob/master/halfsiphash.c)
  * which is distributed with the following copyright:
- *
- * SipHash reference C implementation
- *
- * Copyright (c) 2016 Jean-Philippe Aumasson <jeanphilippe.aumasson@gmail.com>
- *
- * To the extent possible under law, the author(s) have dedicated all copyright
- * and related and neighboring rights to this software to the public domain
- * worldwide. This software is distributed without any warranty.
- *
- * You should have received a copy of the CC0 Public Domain Dedication along
- * with this software. If not, see
- * <http://creativecommons.org/publicdomain/zero/1.0/>.
+ */
+
+/*
+   SipHash reference C implementation
+
+   Copyright (c) 2016 Jean-Philippe Aumasson <jeanphilippe.aumasson@gmail.com>
+
+   To the extent possible under law, the author(s) have dedicated all copyright
+   and related and neighboring rights to this software to the public domain
+   worldwide. This software is distributed without any warranty.
+
+   You should have received a copy of the CC0 Public Domain Dedication along
+   with
+   this software. If not, see
+   <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
 #include "precompiled.hpp"
 #include "classfile/altHashing.hpp"
-#include "classfile/systemDictionary.hpp"
+#include "classfile/vmClasses.hpp"
 #include "oops/klass.inline.hpp"
 #include "oops/markWord.hpp"
 #include "oops/oop.inline.hpp"
@@ -62,8 +65,8 @@ uint64_t AltHashing::compute_seed() {
   uint64_t nanos = os::javaTimeNanos();
   uint64_t now = os::javaTimeMillis();
   uint32_t SEED_MATERIAL[8] = {
-            (uint32_t) object_hash(SystemDictionary::String_klass()),
-            (uint32_t) object_hash(SystemDictionary::System_klass()),
+            (uint32_t) object_hash(vmClasses::String_klass()),
+            (uint32_t) object_hash(vmClasses::System_klass()),
             (uint32_t) os::random(),  // current thread isn't a java thread
             (uint32_t) (((uint64_t)nanos) >> 32),
             (uint32_t) nanos,
@@ -107,7 +110,7 @@ static void halfsiphash_adddata(uint32_t v[4], uint32_t newdata, int rounds) {
 
 static void halfsiphash_init32(uint32_t v[4], uint64_t seed) {
   v[0] = seed & 0xffffffff;
-  v[1] = seed >> 32;
+  v[1] = (uint32_t)(seed >> 32);
   v[2] = 0x6c796765 ^ v[0];
   v[3] = 0x74656462 ^ v[1];
 }
@@ -135,7 +138,9 @@ static uint64_t halfsiphash_finish64(uint32_t v[4], int rounds) {
 }
 
 // HalfSipHash-2-4 (32-bit output) for Symbols
-uint32_t AltHashing::halfsiphash_32(uint64_t seed, const uint8_t* data, int len) {
+uint32_t AltHashing::halfsiphash_32(uint64_t seed, const void* in, int len) {
+
+  const unsigned char* data = (const unsigned char*)in;
   uint32_t v[4];
   uint32_t newdata;
   int off = 0;

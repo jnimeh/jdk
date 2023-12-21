@@ -23,7 +23,7 @@
  */
 
 /*
- * @test TestEvilSyncBug
+ * @test
  * @summary Tests for crash/assert when attaching init thread during shutdown
  * @requires vm.gc.Shenandoah
  * @library /test/lib
@@ -56,7 +56,7 @@ public class TestEvilSyncBug {
 
             for (int c = 0; c < NUM_RUNS; c++) {
                 Callable<Void> task = () -> {
-                    ProcessBuilder pb = ProcessTools.createJavaProcessBuilder("-Xms128m",
+                    ProcessBuilder pb = ProcessTools.createLimitedTestJavaProcessBuilder("-Xms128m",
                             "-Xmx128m",
                             "-XX:+UnlockExperimentalVMOptions",
                             "-XX:+UnlockDiagnosticVMOptions",

@@ -26,7 +26,6 @@
 #import "JNIUtilities.h"
 
 #import <AppKit/AppKit.h>
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
 #import <JavaRuntimeSupport/JavaRuntimeSupport.h>
 
 
@@ -211,9 +210,11 @@ static BOOL sSetupHelpMenu = NO;
         // In theory, this might cause flickering if the window gaining focus
         // has its own menu. However, I couldn't reproduce it on practice, so
         // perhaps this is a non issue.
-        CMenuBar* defaultMenu = [[ApplicationDelegate sharedDelegate] defaultMenuBar];
-        if (defaultMenu != nil) {
-            [CMenuBar activate:defaultMenu modallyDisabled:NO];
+        if ([ApplicationDelegate sharedDelegate] != nil) {
+            CMenuBar* defaultMenu = [[ApplicationDelegate sharedDelegate] defaultMenuBar];
+            if (defaultMenu != nil) {
+                [CMenuBar activate:defaultMenu modallyDisabled:NO];
+            }
         }
     }
 }

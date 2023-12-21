@@ -32,8 +32,6 @@
 #import "com_apple_eawt__AppMenuBarHandler.h"
 #import "com_apple_eawt__AppMiscHandlers.h"
 
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
-
 #import "CPopupMenu.h"
 #import "CMenuBar.h"
 #import "ThreadUtilities.h"
@@ -118,8 +116,9 @@ AWT_ASSERT_APPKIT_THREAD;
 
     // don't install the EAWT delegate if another kind of NSApplication is installed, like say, Safari
     BOOL shouldInstall = NO;
+    BOOL overrideDelegate = (getenv("AWT_OVERRIDE_NSDELEGATE") != NULL);
     if (NSApp != nil) {
-        if ([NSApp isMemberOfClass:[NSApplication class]]) shouldInstall = YES;
+        if ([NSApp isMemberOfClass:[NSApplication class]] && overrideDelegate) shouldInstall = YES;
         if ([NSApp isKindOfClass:[NSApplicationAWT class]]) shouldInstall = YES;
     }
     checked = YES;
@@ -290,10 +289,10 @@ AWT_ASSERT_APPKIT_THREAD;
 
     //fprintf(stderr,"jm_handleOpenURL\n");
     JNIEnv *env = [ThreadUtilities getJNIEnv];
-    jstring jURL = JNFNSToJavaString(env, url);
+    jstring jURL = NSStringToJavaString(env, url);
     GET_APPEVENTHANDLER_CLASS();
     DECLARE_STATIC_METHOD(jm_handleOpenURI, sjc_AppEventHandler, "handleOpenURI", "(Ljava/lang/String;)V");
-    (*env)->CallStaticVoidMethod(env, sjc_AppEventHandler, jm_handleOpenURI, jURL); // AWT_THREADING Safe (event)
+    (*env)->CallStaticVoidMethod(env, sjc_AppEventHandler, jm_handleOpenURI, jURL);
     CHECK_EXCEPTION();
     (*env)->DeleteLocalRef(env, jURL);
 
@@ -312,11 +311,11 @@ AWT_ASSERT_APPKIT_THREAD;
     DECLARE_METHOD_RETURN(jm_ArrayList_ctor, sjc_ArrayList, "<init>", "(I)V", NULL);
     DECLARE_METHOD_RETURN(jm_ArrayList_add, sjc_ArrayList, "add", "(Ljava/lang/Object;)Z", NULL);
 
-    jobject jFileNamesArray = (*env)->NewObject(env, sjc_ArrayList, jm_ArrayList_ctor, (jint)[filenames count]); // AWT_THREADING Safe (known object)
+    jobject jFileNamesArray = (*env)->NewObject(env, sjc_ArrayList, jm_ArrayList_ctor, (jint)[filenames count]);
     CHECK_EXCEPTION_NULL_RETURN(jFileNamesArray, NULL);
 
     for (NSString *filename in filenames) {
-        jstring jFileName = JNFNormalizedJavaStringForPath(env, filename);
+        jstring jFileName = NormalizedPathJavaStringFromNSString(env, filename);
         (*env)->CallVoidMethod(env, jFileNamesArray, jm_ArrayList_add, jFileName);
         CHECK_EXCEPTION();
     }
@@ -338,7 +337,7 @@ AWT_ASSERT_APPKIT_THREAD;
     // if these files were opened from a Spotlight query, try to get the search text from the current AppleEvent
     NSAppleEventDescriptor *currentEvent = [[NSAppleEventManager sharedAppleEventManager] currentAppleEvent];
     NSString *searchString = [[currentEvent paramDescriptorForKeyword:keyAESearchText] stringValue];
-    jstring jSearchString = JNFNSToJavaString(env, searchString);
+    jstring jSearchString = NSStringToJavaString(env, searchString);
 
     // convert the file names array
     jobject jFileNamesArray = [self _createFilePathArrayFrom:fileNames withEnv:env];
@@ -365,7 +364,7 @@ AWT_ASSERT_APPKIT_THREAD;
     GET_APPEVENTHANDLER_CLASS_RETURN(NSPrintingCancelled);
     DECLARE_STATIC_METHOD_RETURN(jm_handlePrintFile, sjc_AppEventHandler,
                               "handlePrintFiles", "(Ljava/util/List;)V", NSPrintingCancelled);
-    (*env)->CallStaticVoidMethod(env, sjc_AppEventHandler, jm_handlePrintFile, jFileNamesArray); // AWT_THREADING Safe (event)
+    (*env)->CallStaticVoidMethod(env, sjc_AppEventHandler, jm_handlePrintFile, jFileNamesArray);
     CHECK_EXCEPTION();
     (*env)->DeleteLocalRef(env, jFileNamesArray);
 
@@ -380,7 +379,7 @@ AWT_ASSERT_APPKIT_THREAD;
     JNIEnv *env = [ThreadUtilities getJNIEnv];
     GET_APPEVENTHANDLER_CLASS();
     DECLARE_STATIC_METHOD(jm_handleNativeNotification, sjc_AppEventHandler, "handleNativeNotification", "(I)V");
-    (*env)->CallStaticVoidMethod(env, sjc_AppEventHandler, jm_handleNativeNotification, notificationType); // AWT_THREADING Safe (event)
+    (*env)->CallStaticVoidMethod(env, sjc_AppEventHandler, jm_handleNativeNotification, notificationType);
     CHECK_EXCEPTION();
 }
 
@@ -409,6 +408,19 @@ AWT_ASSERT_APPKIT_THREAD;
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)app {
     [ApplicationDelegate _notifyJava:com_apple_eawt__AppEventHandler_NOTIFY_QUIT];
     return NSTerminateLater;
+}
+
+- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app {
+    static BOOL checked = NO;
+    static BOOL supportsSecureState = YES;
+
+    if (checked == NO) {
+        checked = YES;
+        if (getenv("AWT_DISABLE_NSDELEGATE_SECURE_SAVE") != NULL) {
+            supportsSecureState = NO;
+        }
+    }
+    return supportsSecureState;
 }
 
 + (void)_systemWillPowerOff {
@@ -508,8 +520,10 @@ AWT_ASSERT_APPKIT_THREAD;
     [dockImageView setImageScaling:NSImageScaleProportionallyUpOrDown];
     [dockImageView setImage:image];
 
-    [[ApplicationDelegate sharedDelegate].fProgressIndicator removeFromSuperview];
-    [dockImageView addSubview:[ApplicationDelegate sharedDelegate].fProgressIndicator];
+    if ([ApplicationDelegate sharedDelegate] != nil) {
+        [[ApplicationDelegate sharedDelegate].fProgressIndicator removeFromSuperview];
+        [dockImageView addSubview:[ApplicationDelegate sharedDelegate].fProgressIndicator];
+    }
 
     // add it to the NSDockTile
     [dockTile setContentView: dockImageView];
@@ -522,14 +536,15 @@ AWT_ASSERT_APPKIT_THREAD;
 AWT_ASSERT_APPKIT_THREAD;
 
     ApplicationDelegate *delegate = [ApplicationDelegate sharedDelegate];
-    if ([value doubleValue] >= 0 && [value doubleValue] <=100) {
-        [delegate.fProgressIndicator setDoubleValue:[value doubleValue]];
-        [delegate.fProgressIndicator setHidden:NO];
-    } else {
-        [delegate.fProgressIndicator setHidden:YES];
+    if (delegate != nil) {
+        if ([value doubleValue] >= 0 && [value doubleValue] <=100) {
+            [delegate.fProgressIndicator setDoubleValue:[value doubleValue]];
+            [delegate.fProgressIndicator setHidden:NO];
+        } else {
+            [delegate.fProgressIndicator setHidden:YES];
+        }
+        [[NSApp dockTile] display];
     }
-
-    [[NSApp dockTile] display];
 }
 
 // Obtains the image of the Dock icon, either manually set, a drawn copy, or the default NSApplicationIcon
@@ -624,7 +639,7 @@ JNI_COCOA_ENTER(env);
     [ThreadUtilities performOnMainThread:@selector(_registerForNotification:)
                                       on:[ApplicationDelegate class]
                               withObject:[NSNumber numberWithInt:notificationType]
-                           waitUntilDone:NO]; // AWT_THREADING Safe (non-blocking)
+                           waitUntilDone:NO];
 JNI_COCOA_EXIT(env);
 }
 
@@ -640,7 +655,9 @@ JNI_COCOA_ENTER(env);
 
     NSMenu *menu = (NSMenu *)jlong_to_ptr(nsMenuPtr);
     [ThreadUtilities performOnMainThreadWaiting:YES block:^(){
-        [ApplicationDelegate sharedDelegate].fDockMenu = menu;
+        if ([ApplicationDelegate sharedDelegate] != nil) {
+            [ApplicationDelegate sharedDelegate].fDockMenu = menu;
+        }
     }];
 
 JNI_COCOA_EXIT(env);
@@ -714,7 +731,7 @@ JNIEXPORT void JNICALL Java_com_apple_eawt__1AppDockIconHandler_nativeSetDockIco
 {
 JNI_COCOA_ENTER(env);
 
-    NSString *badgeString = JNFJavaToNSString(env, badge);
+    NSString *badgeString = JavaStringToNSString(env, badge);
     [ThreadUtilities performOnMainThreadWaiting:NO block:^(){
         NSDockTile *dockTile = [NSApp dockTile];
         [dockTile setBadgeLabel:badgeString];
@@ -820,13 +837,15 @@ JNI_COCOA_ENTER(env);
 
     [ThreadUtilities performOnMainThreadWaiting:NO block:^(){
         ApplicationDelegate *delegate = [ApplicationDelegate sharedDelegate];
-        switch (menuID) {
-            case com_apple_eawt__AppMenuBarHandler_MENU_ABOUT:
-                [delegate _updateAboutMenu:visible enabled:enabled];
-                break;
-            case com_apple_eawt__AppMenuBarHandler_MENU_PREFS:
-                [delegate _updatePreferencesMenu:visible enabled:enabled];
-                break;
+        if (delegate != nil) {
+            switch (menuID) {
+                case com_apple_eawt__AppMenuBarHandler_MENU_ABOUT:
+                    [delegate _updateAboutMenu:visible enabled:enabled];
+                    break;
+                case com_apple_eawt__AppMenuBarHandler_MENU_PREFS:
+                    [delegate _updatePreferencesMenu:visible enabled:enabled];
+                    break;
+            }
         }
     }];
 
@@ -845,7 +864,9 @@ JNI_COCOA_ENTER(env);
 
     CMenuBar *menu = (CMenuBar *)jlong_to_ptr(cMenuBarPtr);
     [ThreadUtilities performOnMainThreadWaiting:NO block:^(){
-        [ApplicationDelegate sharedDelegate].fDefaultMenuBar = menu;
+        if ([ApplicationDelegate sharedDelegate] != nil) {
+            [ApplicationDelegate sharedDelegate].fDefaultMenuBar = menu;
+        }
     }];
 
 JNI_COCOA_EXIT(env);

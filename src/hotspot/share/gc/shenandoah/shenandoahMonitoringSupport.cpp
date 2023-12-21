@@ -57,8 +57,8 @@ public:
 };
 
 ShenandoahMonitoringSupport::ShenandoahMonitoringSupport(ShenandoahHeap* heap) :
-        _partial_counters(NULL),
-        _full_counters(NULL)
+        _partial_counters(nullptr),
+        _full_counters(nullptr)
 {
   // Collection counters do not fit Shenandoah very well.
   // We record partial cycles as "young", and full cycles (including full STW GC) as "old".
@@ -101,6 +101,5 @@ void ShenandoahMonitoringSupport::update_counters() {
     _heap_region_counters->update();
 
     MetaspaceCounters::update_performance_counters();
-    CompressedClassSpaceCounters::update_performance_counters();
   }
 }
