@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2024, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2023 SAP SE. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
@@ -28,7 +28,6 @@
 #include "asm/assembler.inline.hpp"
 #include "classfile/vmSymbols.hpp"
 #include "code/codeCache.hpp"
-#include "code/icBuffer.hpp"
 #include "code/vtableStubs.hpp"
 #include "interpreter/interpreter.hpp"
 #include "jvm.h"
@@ -126,7 +125,7 @@ frame os::fetch_frame_from_context(const void* ucVoid) {
   address epc = fetch_frame_from_context(ucVoid, &sp, &fp);
   // Avoid crash during crash if pc broken.
   if (epc) {
-    frame fr(sp, epc);
+    frame fr(sp, epc, frame::kind::unknown);
     return fr;
   }
   frame fr(sp);
@@ -137,21 +136,21 @@ frame os::fetch_compiled_frame_from_context(const void* ucVoid) {
   const ucontext_t* uc = (const ucontext_t*)ucVoid;
   intptr_t* sp = os::Aix::ucontext_get_sp(uc);
   address lr = ucontext_get_lr(uc);
-  return frame(sp, lr);
+  return frame(sp, lr, frame::kind::unknown);
 }
 
 frame os::get_sender_for_C_frame(frame* fr) {
   if (*fr->sp() == (intptr_t) nullptr) {
     // fr is the last C frame
-    return frame(nullptr, nullptr);
+    return frame();
   }
-  return frame(fr->sender_sp(), fr->sender_pc());
+  return frame(fr->sender_sp(), fr->sender_pc(), frame::kind::unknown);
 }
 
 
 frame os::current_frame() {
   intptr_t* csp = *(intptr_t**) __builtin_frame_address(0);
-  frame topframe(csp, CAST_FROM_FN_PTR(address, os::current_frame));
+  frame topframe(csp, CAST_FROM_FN_PTR(address, os::current_frame), frame::kind::unknown);
   return os::get_sender_for_C_frame(&topframe);
 }
 
@@ -237,7 +236,7 @@ bool PosixSignals::pd_hotspot_signal_handler(int sig, siginfo_t* info,
                ((NativeInstruction*)pc)->is_safepoint_poll() &&
                CodeCache::contains((void*) pc) &&
                ((cb = CodeCache::find_blob(pc)) != nullptr) &&
-               cb->is_compiled()) {
+               cb->is_nmethod()) {
         if (TraceTraps) {
           tty->print_cr("trap: safepoint_poll at " INTPTR_FORMAT " (%s)", p2i(pc),
                         USE_POLL_BIT_ONLY ? "SIGTRAP" : "SIGSEGV");
@@ -250,7 +249,7 @@ bool PosixSignals::pd_hotspot_signal_handler(int sig, siginfo_t* info,
                ((NativeInstruction*)pc)->is_safepoint_poll_return() &&
                CodeCache::contains((void*) pc) &&
                ((cb = CodeCache::find_blob(pc)) != nullptr) &&
-               cb->is_compiled()) {
+               cb->is_nmethod()) {
         if (TraceTraps) {
           tty->print_cr("trap: safepoint_poll at return at " INTPTR_FORMAT " (nmethod)", p2i(pc));
         }
@@ -340,7 +339,7 @@ bool PosixSignals::pd_hotspot_signal_handler(int sig, siginfo_t* info,
         // BugId 4454115: A read from a MappedByteBuffer can fault here if the
         // underlying file has been truncated. Do not crash the VM in such a case.
         CodeBlob* cb = CodeCache::find_blob(pc);
-        CompiledMethod* nm = cb ? cb->as_compiled_method_or_null() : nullptr;
+        nmethod* nm = cb ? cb->as_nmethod_or_null() : nullptr;
         bool is_unsafe_arraycopy = (thread->doing_unsafe_access() && UnsafeCopyMemory::contains_pc(pc));
         if ((nm != nullptr && nm->has_unsafe_access()) || is_unsafe_arraycopy) {
           address next_pc = pc + 4;

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015, 2023, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2015, 2024, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # This code is free software; you can redistribute it and/or modify it
@@ -139,9 +139,6 @@ BUILD_HOTSPOT_JTREG_LIBRARIES_CFLAGS_libNoFramePointer := $(NO_FRAMEPOINTER_CFLA
 BUILD_HOTSPOT_JTREG_LIBRARIES_OPTIMIZATION_libNoFramePointer := HIGH
 
 JVMTI_COMMON_INCLUDES=-I$(TOPDIR)/test/lib/jdk/test/lib/jvmti
-
-BUILD_HOTSPOT_JTREG_LIBRARIES_CFLAGS := -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS $(JVMTI_COMMON_INCLUDES)
-BUILD_HOTSPOT_JTREG_EXECUTABLES_CFLAGS := -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS $(JVMTI_COMMON_INCLUDES)
 
 BUILD_HOTSPOT_JTREG_LIBRARIES_CFLAGS_libProcessUtils := $(VM_SHARE_INCLUDES)
 
@@ -857,6 +854,11 @@ else
       exeinvoke.c exestack-gap.c exestack-tls.c libAsyncGetCallTraceTest.cpp
 endif
 
+ifeq ($(call And, $(call isTargetOs, linux) $(call isTargetCpu, aarch64)), false)
+  BUILD_HOTSPOT_JTREG_EXCLUDE += libTestSVEWithJNI.c
+endif
+
+
 BUILD_HOTSPOT_JTREG_EXECUTABLES_LIBS_exesigtest := -ljvm
 
 ifeq ($(call isTargetOs, windows), true)
@@ -1521,6 +1523,10 @@ ifeq ($(LSAN_ENABLED), true)
   # default LSan options.
   BUILD_HOTSPOT_JTREG_EXTRA_FILES += $(TOPDIR)/make/data/lsan/lsan_default_options.c
 endif
+
+# These apply to all tests
+BUILD_HOTSPOT_JTREG_LIBRARIES_CFLAGS := -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS $(JVMTI_COMMON_INCLUDES)
+BUILD_HOTSPOT_JTREG_EXECUTABLES_CFLAGS := -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS $(JVMTI_COMMON_INCLUDES)
 
 # This evaluation is expensive and should only be done if this target was
 # explicitly called.
