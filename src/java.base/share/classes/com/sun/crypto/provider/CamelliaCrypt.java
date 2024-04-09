@@ -196,8 +196,6 @@ final class CamelliaCrypt extends SymmetricCipher {
          40,  123,  -55,  -63,  -29,  -12,  -57,  -98
     };
 
-
-    private static final int INTMASK8 = 0x000000FF;
     private static final long MASK8 = 0x00000000000000FFL;
     private static final long MASK32 = 0x00000000FFFFFFFFL;
 
@@ -348,6 +346,7 @@ final class CamelliaCrypt extends SymmetricCipher {
      * @throws InvalidKeyException if an invalid key length is provided.
      */
     private void createSubkeys() throws InvalidKeyException {
+        long[] int128 = new long[2];
         switch (keyLength) {
             case 16:
                 kw[0] = KL[0];
@@ -355,34 +354,47 @@ final class CamelliaCrypt extends SymmetricCipher {
                 k[0] = KA[0];
                 k[1] = KA[1];
 
-                k[2] = leftRot128(KL, 15)[0];
-                k[3] = leftRot128(KL, 15)[1];
-                k[4] = leftRot128(KA, 15)[0];
-                k[5] = leftRot128(KA, 15)[1];
+                leftRot128(KL, 15, int128);
+                k[2] = int128[0];
+                k[3] = int128[1];
 
-                ke[0] = leftRot128(KA, 30)[0];
-                ke[1] = leftRot128(KA, 30)[1];
+                leftRot128(KA, 15, int128);
+                k[4] = int128[0];
+                k[5] = int128[1];
 
-                k[6] = leftRot128(KL, 45)[0];
-                k[7] = leftRot128(KL, 45)[1];
-                k[8] = leftRot128(KA, 45)[0];
+                leftRot128(KA, 30, int128);
+                ke[0] = int128[0];
+                ke[1] = int128[1];
 
-                k[9] = leftRot128(KL, 60)[1];
-                k[10] = leftRot128(KA, 60)[0];
-                k[11] = leftRot128(KA, 60)[1];
+                leftRot128(KL, 45, int128);
+                k[6] = int128[0];
+                k[7] = int128[1];
+                leftRot128(KA, 45, int128);
+                k[8] = int128[0];
 
-                ke[2] = leftRot128(KL, 77)[0];
-                ke[3] = leftRot128(KL, 77)[1];
+                leftRot128(KL, 60, int128);
+                k[9] = int128[1];
+                leftRot128(KA, 60, int128);
+                k[10] = int128[0];
+                k[11] = int128[1];
 
-                k[12] = leftRot128(KL, 94)[0];
-                k[13] = leftRot128(KL, 94)[1];
-                k[14] = leftRot128(KA, 94)[0];
-                k[15] = leftRot128(KA, 94)[1];
+                leftRot128(KL, 77, int128);
+                ke[2] = int128[0];
+                ke[3] = int128[1];
 
-                k[16] = leftRot128(KL, 111)[0];
-                k[17] = leftRot128(KL, 111)[1];
-                kw[2] = leftRot128(KA, 111)[0];
-                kw[3] = leftRot128(KA, 111)[1];
+                leftRot128(KL, 94, int128);
+                k[12] = int128[0];
+                k[13] = int128[1];
+                leftRot128(KA, 94, int128);
+                k[14] = int128[0];
+                k[15] = int128[1];
+
+                leftRot128(KL, 111, int128);
+                k[16] = int128[0];
+                k[17] = int128[1];
+                leftRot128(KA, 111, int128);
+                kw[2] = int128[0];
+                kw[3] = int128[1];
                 break;
             case 24:
             case 32:
@@ -391,42 +403,57 @@ final class CamelliaCrypt extends SymmetricCipher {
                 k[0] = KB[0];
                 k[1] = KB[1];
 
-                k[2] = leftRot128(KR, 15)[0];
-                k[3] = leftRot128(KR, 15)[1];
-                k[4] = leftRot128(KA, 15)[0];
-                k[5] = leftRot128(KA, 15)[1];
+                leftRot128(KR, 15, int128);
+                k[2] = int128[0];
+                k[3] = int128[1];
+                leftRot128(KA, 15, int128);
+                k[4] = int128[0];
+                k[5] = int128[1];
 
-                ke[0] = leftRot128(KR, 30)[0];
-                ke[1] = leftRot128(KR, 30)[1];
-                k[6] = leftRot128(KB, 30)[0];
-                k[7] = leftRot128(KB, 30)[1];
+                leftRot128(KR, 30, int128);
+                ke[0] = int128[0];
+                ke[1] = int128[1];
+                leftRot128(KB, 30, int128);
+                k[6] = int128[0];
+                k[7] = int128[1];
 
-                k[8] = leftRot128(KL, 45)[0];
-                k[9] = leftRot128(KL, 45)[1];
-                k[10] = leftRot128(KA, 45)[0];
-                k[11] = leftRot128(KA, 45)[1];
+                leftRot128(KL, 45, int128);
+                k[8] = int128[0];
+                k[9] = int128[1];
+                leftRot128(KA, 45, int128);
+                k[10] = int128[0];
+                k[11] = int128[1];
 
-                ke[2] = leftRot128(KL, 60)[0];
-                ke[3] = leftRot128(KL, 60)[1];
-                k[12] = leftRot128(KR, 60)[0];
-                k[13] = leftRot128(KR, 60)[1];
-                k[14] = leftRot128(KB, 60)[0];
-                k[15] = leftRot128(KB, 60)[1];
+                leftRot128(KL, 60, int128);
+                ke[2] = int128[0];
+                ke[3] = int128[1];
+                leftRot128(KR, 60, int128);
+                k[12] = int128[0];
+                k[13] = int128[1];
+                leftRot128(KB, 60, int128);
+                k[14] = int128[0];
+                k[15] = int128[1];
 
-                k[16] = leftRot128(KL, 77)[0];
-                k[17] = leftRot128(KL, 77)[1];
-                ke[4] = leftRot128(KA, 77)[0];
-                ke[5] = leftRot128(KA, 77)[1];
+                leftRot128(KL, 77, int128);
+                k[16] = int128[0];
+                k[17] = int128[1];
+                leftRot128(KA, 77, int128);
+                ke[4] = int128[0];
+                ke[5] = int128[1];
 
-                k[18] = leftRot128(KR, 94)[0];
-                k[19] = leftRot128(KR, 94)[1];
-                k[20] = leftRot128(KA, 94)[0];
-                k[21] = leftRot128(KA, 94)[1];
+                leftRot128(KR, 94, int128);
+                k[18] = int128[0];
+                k[19] = int128[1];
+                leftRot128(KA, 94, int128);
+                k[20] = int128[0];
+                k[21] = int128[1];
 
-                k[22] = leftRot128(KL, 111)[0];
-                k[23] = leftRot128(KL, 111)[1];
-                kw[2] = leftRot128(KB, 111)[0];
-                kw[3] = leftRot128(KB, 111)[1];
+                leftRot128(KL, 111, int128);
+                k[22] = int128[0];
+                k[23] = int128[1];
+                leftRot128(KB, 111, int128);
+                kw[2] = int128[0];
+                kw[3] = int128[1];
                 break;
             default:
                 // This should never happen if called from init()
@@ -621,38 +648,43 @@ final class CamelliaCrypt extends SymmetricCipher {
     }
 
     /**
-     * Performs a 128-bit non-destructive left rotation on two 64-bit longs.
+     * Perform a left-rotation on a 128-bit big-endian integer, interpreted
+     * as an array of two longs.
      *
      * @param int128 an array of two longs.  No error checking is performed;
-     * it is the caller's responsibility to provide a 2-element long array.
-     * The value of {@code int128} will be unchanged after this method returns.
+     *      it is the caller's responsibility to provide a 2-element long
+     *      array. The value of {@code int128} will be unchanged after this
+     *      method returns.
      * @param numBits the number of high order bits to mask off.  Must be a
-     * number between 0 <= X <= 128.  It is the caller's responsibility to make
-     * sure the bit count falls within this range.
-     *
-     * @return the rotated value as a 2-element long array
+     *      number between 0 <= X <= 128.  It is the caller's responsibility
+     *      to make sure the bit count falls within this range.
+     * @param out the returned 128-bit big endian integer as an array of two
+     *      longs.
      */
-    private static long[] leftRot128(long[] int128, int numBits) {
-        long[] working = int128.clone();
+    private static void leftRot128(long[] int128, int numBits, long[] out) {
+        long left = int128[0];
+        long right = int128[1];
 
         // If we have at least an odd multiple of 64 bits, we can simplify
         // things by swapping the two longs.  Then all we need to do is
         // left-shift the remainder (mod 64).
         if (((numBits >> 6) & 0x1) != 0) {
-            working[0] ^= working[1];
-            working[1] ^= working[0];
-            working[0] ^= working[1];
+            left ^= right;
+            right ^= left;
+            left ^= right;
         }
 
         // Then left-rotate any leftover bits (numBits % 64)
         int actualShift = numBits % 64;
-        long mask = ((1L << actualShift) - 1) << (64 - actualShift);
-        long lRollBits = (working[0] & mask) >>> (64 - actualShift);
-        long rRollBits = (working[1] & mask) >>> (64 - actualShift);
-        working[0] = (working[0] << actualShift) | rRollBits;
-        working[1] = (working[1] << actualShift) | lRollBits;
+        int leftOver = 64 - actualShift;
+        long mask = ((1L << actualShift) - 1) << leftOver;
+        long lRollBits = (left & mask) >>> leftOver;
+        long rRollBits = (right & mask) >>> leftOver;
+        left = (left << actualShift) | rRollBits;
+        right = (right << actualShift) | lRollBits;
 
-        return working;
+        out[0] = left;
+        out[1] = right;
     }
 
     /**

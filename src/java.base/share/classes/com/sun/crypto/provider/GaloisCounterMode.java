@@ -1728,6 +1728,22 @@ abstract class GaloisCounterMode extends CipherSpi {
         }
     }
 
+    public static final class CamelliaGCM extends GaloisCounterMode {
+        public CamelliaGCM() { super(-1, new CamelliaCrypt()); }
+    }
+
+    public static final class Camellia128 extends GaloisCounterMode {
+        public Camellia128() { super(16, new CamelliaCrypt()); }
+    }
+
+    public static final class Camellia192 extends GaloisCounterMode {
+        public Camellia192() { super(24, new CamelliaCrypt()); }
+    }
+
+    public static final class Camellia256 extends GaloisCounterMode {
+        public Camellia256() { super(32, new CamelliaCrypt()); }
+    }
+
     /**
      * This class is for encryption when both GCTR and GHASH
      * can operation in parallel.

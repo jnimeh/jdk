@@ -299,6 +299,9 @@ public final class SunJCE extends Provider {
 
         attrs.clear();
         attrs.put("SupportedKeyFormats", "RAW");
+        ps("Cipher", "Camellia/GCM/NoPadding",
+                "com.sun.crypto.provider.GaloisCounterMode$CamelliaGCM", null,
+                attrs);
         psA("Cipher", "Camellia_128/ECB/NoPadding",
                 "com.sun.crypto.provider.CamelliaCipher$Camellia128_ECB_NoPadding",
                 attrs);
@@ -310,9 +313,6 @@ public final class SunJCE extends Provider {
                 attrs);
         psA("Cipher", "Camellia_128/CFB/NoPadding",
                 "com.sun.crypto.provider.CamelliaCipher$Camellia128_CFB_NoPadding",
-                attrs);
-        psA("Cipher", "Camellia_128/GCM/NoPadding",
-                "com.sun.crypto.provider.CamelliaCipher$Camellia128_GCM_NoPadding",
                 attrs);
 
         psA("Cipher", "Camellia_192/ECB/NoPadding",
@@ -327,9 +327,6 @@ public final class SunJCE extends Provider {
         psA("Cipher", "Camellia_192/CFB/NoPadding",
                 "com.sun.crypto.provider.CamelliaCipher$Camellia192_CFB_NoPadding",
                 attrs);
-        psA("Cipher", "Camellia_192/GCM/NoPadding",
-                "com.sun.crypto.provider.CamelliaCipher$Camellia192_GCM_NoPadding",
-                attrs);
 
         psA("Cipher", "Camellia_256/ECB/NoPadding",
                 "com.sun.crypto.provider.CamelliaCipher$Camellia256_ECB_NoPadding",
@@ -343,9 +340,20 @@ public final class SunJCE extends Provider {
         psA("Cipher", "Camellia_256/CFB/NoPadding",
                 "com.sun.crypto.provider.CamelliaCipher$Camellia256_CFB_NoPadding",
                 attrs);
-        psA("Cipher", "Camellia_256/GCM/NoPadding",
-                "com.sun.crypto.provider.CamelliaCipher$Camellia256_GCM_NoPadding",
+
+        attrs.clear();
+        attrs.put("SupportedModes", "GCM");
+        attrs.put("SupportedKeyFormats", "RAW");
+
+        ps("Cipher", "Camellia/GCM/NoPadding",
+                "com.sun.crypto.provider.GaloisCounterMode$CamelliaGCM", null,
                 attrs);
+        psA("Cipher", "Camellia_128/GCM/NoPadding",
+                "com.sun.crypto.provider.GaloisCounterMode$Camellia128", attrs);
+        psA("Cipher", "Camellia_192/GCM/NoPadding",
+                "com.sun.crypto.provider.GaloisCounterMode$Camellia192", attrs);
+        psA("Cipher", "Camellia_256/GCM/NoPadding",
+                "com.sun.crypto.provider.GaloisCounterMode$Camellia256", attrs);
 
         // Camellia Key Wrapping
         attrs.clear();
