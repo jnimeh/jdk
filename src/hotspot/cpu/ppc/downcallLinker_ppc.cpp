@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2020, 2023 SAP SE. All rights reserved.
- * Copyright (c) 2020, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2024 SAP SE. All rights reserved.
+ * Copyright (c) 2020, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,7 +22,6 @@
  * questions.
  */
 
-#include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
 #include "code/codeBlob.hpp"
 #include "code/codeCache.hpp"
@@ -187,7 +186,7 @@ void DowncallLinker::StubGenerator::generate() {
   _oop_maps  = _needs_transition ? new OopMapSet() : nullptr;
   address start = __ pc();
 
-  __ save_LR_CR(tmp); // Save in old frame.
+  __ save_LR(tmp); // Save in old frame.
   __ mr(callerSP, R1_SP); // preset (used to access caller frame argument slots)
   __ push_frame(allocated_frame_size, tmp);
 
@@ -302,7 +301,7 @@ void DowncallLinker::StubGenerator::generate() {
   }
 
   __ pop_frame();
-  __ restore_LR_CR(tmp);
+  __ restore_LR(tmp);
   __ blr();
 
   //////////////////////////////////////////////////////////////////////////////
