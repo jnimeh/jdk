@@ -93,6 +93,7 @@ public enum KnownOIDs {
     ipsecUser("1.3.6.1.5.5.7.3.7"),
     KP_TimeStamping("1.3.6.1.5.5.7.3.8", "timeStamping", false),
     OCSPSigning("1.3.6.1.5.5.7.3.9"),
+    CertificateTransparency("1.3.6.1.4.1.11129.2.4.4"), // From RFC 6962
     // access descriptors - PKIX.48.*
     OCSP("1.3.6.1.5.5.7.48.1"),
     OCSPBasicResponse("1.3.6.1.5.5.7.48.1.1"),
@@ -409,7 +410,13 @@ public enum KnownOIDs {
     JAVASOFT_JCEKeyProtector("1.3.6.1.4.1.42.2.19.1"),
     MICROSOFT_ExportApproved("1.3.6.1.4.1.311.10.3.3"),
 
-    Blowfish("1.3.6.1.4.1.3029.1.1.2");
+    Blowfish("1.3.6.1.4.1.3029.1.1.2"),
+
+    // Certificate Transparency OIDs (RFC 6962)
+    SignedCertificateTimestampList("1.3.6.1.4.1.11129.2.4.2"),
+    CertificateTransparencyPoison("1.3.6.1.4.1.11129.2.4.3"),
+    SignedCertificateTimestampListOCSP("1.3.6.1.4.1.11129.2.4.5"),
+    TransparencyInformation("1.3.101.75");
 
     private final String stdName;
     private final String oid;

@@ -25,7 +25,9 @@
 
 package sun.security.ssl;
 
+import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
 import javax.net.ssl.*;
@@ -241,5 +243,59 @@ final class Utilities {
         byte tmp = arr[i];
         arr[i] = arr[j];
         arr[j] = tmp;
+    }
+
+    /**
+     * Read a TLS vector of Extension structures.
+     *
+     * @param data the {@code ByteBuffer} containing the extensions.  The
+     *             buffer's position should be at the beginning of the vector
+     *             (i.e. the first byte of the vector length).
+     *
+     * @return a {@code Map} containing the extension IDs as integers and the
+     * extension data as byte arrays.
+     *
+     * @throws SSLException if the block of extensions contains more than one
+     *         entry of the same extension type.
+     * @throws IOException if any other parsing errors occur.
+     */
+    static Map<Integer, byte[]> parseTlsExtensions(ByteBuffer data)
+            throws IOException {
+        Map<Integer, byte[]> extMap = new LinkedHashMap<>();
+
+        // Read the vector length
+        int extVecLen = Record.getInt16(data);
+        ByteBuffer extSlice = data.slice(data.position(), extVecLen);
+        while (extSlice.hasRemaining()) {
+            int extId = Record.getInt16(extSlice);
+            byte[] extData = Record.getBytes16(extSlice);
+            if (!extMap.containsKey(extId)) {
+                extMap.put(extId, extData);
+            } else {
+                throw new SSLException("Duplicate extension found, ID = : " +
+                        extId);
+            }
+        }
+
+        // Advance the main data position past the extensions
+        data.position(data.position() + extVecLen);
+        return extMap;
+    }
+
+    static byte[] encodeTlsExtensions(Map<Integer, byte[]> extMap)
+            throws IOException {
+        int extListLen = 0;
+        for (byte[] data : extMap.values()) {
+            extListLen += data.length + 2;      // The data + uint16 ID
+        }
+
+        try (HandshakeOutStream hos = new HandshakeOutStream(null)) {
+            hos.putInt16(extListLen);
+            for (var ext : extMap.entrySet()) {
+                hos.putInt16(ext.getKey());
+                hos.putBytes16(ext.getValue());
+            }
+            return hos.toByteArray();
+        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -116,6 +116,9 @@ final class SSLConfiguration implements Cloneable {
 
     static final boolean enableDtlsResumeCookie = Utilities.getBooleanProperty(
             "jdk.tls.enableDtlsResumeCookie", true);
+
+    static final boolean enableClientCertTrans = Utilities.getBooleanProperty(
+            "jdk.tls.client.enableCertTransparency", true);
 
     // Number of NewSessionTickets that will be sent by the server.
     static final int serverNewSessionTicketCount;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1996, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1996, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -27,6 +27,7 @@ package sun.security.ssl;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import javax.net.ssl.SSLException;
 
 /**
@@ -61,7 +62,7 @@ interface Record {
     int OVERFLOW_OF_INT24 = (0x01 << 24);
 
     /*
-     * Read 8, 16, 24, and 32 bit integer data types, encoded
+     * Read 8/16/24/32/64-bit integer data types, encoded
      * in standard big-endian form.
      */
     static int getInt8(ByteBuffer m) throws IOException {
@@ -88,6 +89,14 @@ interface Record {
                ((m.get() & 0xFF) << 16) |
                ((m.get() & 0xFF) <<  8) |
                 (m.get() & 0xFF);
+    }
+
+    static long getInt64(ByteBuffer m) throws IOException {
+        verifyLength(m ,8);
+        ByteOrder orig = m.order();
+        long l = m.order(ByteOrder.BIG_ENDIAN).getLong();
+        m.order(orig);
+        return l;
     }
 
     /*
@@ -121,7 +130,7 @@ interface Record {
     }
 
     /*
-     * Write 8, 16, 24, and 32 bit integer data types, encoded
+     * Write 8/16/24/32/64-bit integer data types, encoded
      * in standard big-endian form.
      */
     static void putInt8(ByteBuffer m, int i) throws IOException {
@@ -143,10 +152,17 @@ interface Record {
     }
 
     static void putInt32(ByteBuffer m, int i) throws IOException {
+        verifyLength(m, 4);
         m.put((byte)((i >> 24) & 0xFF));
         m.put((byte)((i >> 16) & 0xFF));
         m.put((byte)((i >> 8) & 0xFF));
         m.put((byte)(i & 0xFF));
+    }
+
+    static void putInt64(ByteBuffer m, long l) throws IOException {
+        verifyLength(m, 8);
+        ByteOrder orig = m.order();
+        m.order(ByteOrder.BIG_ENDIAN).putLong(l).order(orig);
     }
 
     /*
@@ -186,8 +202,7 @@ interface Record {
     }
 
     // Verify that the buffer has sufficient remaining.
-    static void verifyLength(
-            ByteBuffer m, int len) throws SSLException {
+    static void verifyLength(ByteBuffer m, int len) throws SSLException {
         if (len > m.remaining()) {
             throw new SSLException("Insufficient space in the buffer, " +
                     "may be cause by an unexpected end of handshake data.");

@@ -26,6 +26,7 @@
 package sun.security.ssl;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -122,6 +123,17 @@ public class HandshakeOutStream extends ByteArrayOutputStream {
         super.write(i >> 16);
         super.write(i >> 8);
         super.write(i);
+    }
+
+    void putInt64(long l) {
+        super.write((int)(l >> 56));
+        super.write((int)(l >> 48));
+        super.write((int)(l >> 40));
+        super.write((int)(l >> 32));
+        super.write((int)(l >> 24));
+        super.write((int)(l >> 16));
+        super.write((int)(l >> 8));
+        super.write((int)l);
     }
 
     /*

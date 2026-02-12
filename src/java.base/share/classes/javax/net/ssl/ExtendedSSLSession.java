@@ -25,7 +25,11 @@
 
 package javax.net.ssl;
 
+import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.crypto.SecretKey;
 
 /**
@@ -272,5 +276,31 @@ public abstract class ExtendedSSLSession implements SSLSession {
             String label, byte[] context, int length) throws SSLKeyException {
         throw new UnsupportedOperationException(
                 "Underlying provider does not implement the method");
+    }
+
+    /**
+     * Provide a mapping of certificate transparency objects to the X.509
+     * certificates they belong.  A single certificate may have multiple
+     * certificate transparency objects assigned to it, and they may span
+     * both version 1 and version 2 formats.  They also may contain any
+     * kind of {@code CertTransElement}, depending on what is provided by
+     * the TLS peer during handshaking
+     *
+     * @return the mapping of {@code X509Certificate} objects to their
+     * {@code Set} of certificate transparency objects.  Underlying
+     * implementations that do not support this method will have an empty
+     * {@code Map} returned.
+     *
+     * @since 27
+     *
+     * @spec https://www.rfc-editor.org/info/rfc6962
+     *      RFC 6962: Certificate Transparency
+     * @spec https://www.rfc-editor.org/info/rfc9162
+     *      RFC 9162: Certificate Transparency Version 2.0
+     */
+    public Map<X509Certificate, Set<CertTransElement>> getCertTransElements() {
+        // Underlying implementations that don't support this method will
+        // return an empty map.
+        return new ConcurrentHashMap<>();
     }
 }

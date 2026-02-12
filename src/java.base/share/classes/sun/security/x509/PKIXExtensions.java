@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -228,4 +228,33 @@ public class PKIXExtensions {
      */
     public static final ObjectIdentifier OCSPNonce_Id =
             ObjectIdentifier.of(KnownOIDs.OCSPNonceExt);
+
+    /**
+     * This extension is used to deliver signed certificate timestamps
+     * in X.509 certificates.
+     */
+    public static final ObjectIdentifier SignedCertificateTimestampList_Id =
+            ObjectIdentifier.of(KnownOIDs.SignedCertificateTimestampList);
+
+    /**
+     * This extension is used as a poison extension in certificate transparency
+     * precertificate entries.  The presence of this extension prevents
+     * standard PKIX path validation from succeeding.
+     */
+    public static final ObjectIdentifier CertificateTransparencyPoison_Id =
+            ObjectIdentifier.of(KnownOIDs.CertificateTransparencyPoison);
+
+    /**
+     * This extension is used to deliver signed certificate timestamps
+     * in OCSP responses as singleExtensions.
+     */
+    public static final ObjectIdentifier SignedCertificateTimestampListOCSP_Id =
+            ObjectIdentifier.of(KnownOIDs.SignedCertificateTimestampListOCSP);
+
+    /**
+     * This extension is used to deliver CTv2.0 TransItem structures in
+     * X.509 Certificates.
+     */
+    public static final ObjectIdentifier TransparencyInformation_Id =
+            ObjectIdentifier.of(KnownOIDs.TransparencyInformation);
 }

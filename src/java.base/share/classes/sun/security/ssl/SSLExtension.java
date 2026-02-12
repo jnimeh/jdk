@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -232,7 +232,42 @@ enum SSLExtension implements SSLStringizer {
                                 CertStatusExtension.certStatusReqV2Stringizer),
 
     // Extensions defined in RFC 6962 (Certificate Transparency)
-    SIGNED_CERT_TIMESTAMP   (0x0012, "signed_certificate_timestamp"),
+    CH_SIGNED_CERT_TIMESTAMP    (0x0012, "signed_certificate_timestamp",
+                    SSLHandshake.CLIENT_HELLO,
+                    ProtocolVersion.PROTOCOLS_TO_13,
+                    SignedCertTimestampExtension.chNetworkProducer,
+                    SignedCertTimestampExtension.chOnLoadConsumer,
+                    null,
+                    null,
+                    null,
+                    SignedCertTimestampExtension.signedCertTimestampStringizer),
+    SH_SIGNED_CERT_TIMESTAMP    (0x0012, "signed_certificate_timstamp",
+                    SSLHandshake.SERVER_HELLO,
+                    ProtocolVersion.PROTOCOLS_TO_12,
+                    SignedCertTimestampExtension.shNetworkProducer,
+                    SignedCertTimestampExtension.shOnLoadConsumer,
+                    null,
+                    null,
+                    null,
+                    SignedCertTimestampExtension.signedCertTimestampStringizer),
+    CT_SIGNED_CERT_TIMESTAMP    (0x0012, "signed_certificate_timstamp",
+                    SSLHandshake.CERTIFICATE,
+                    ProtocolVersion.PROTOCOLS_OF_13,
+                    SignedCertTimestampExtension.ctNetworkProducer,
+                    SignedCertTimestampExtension.ctOnLoadConsumer,
+                    null,
+                    null,
+                    null,
+                    SignedCertTimestampExtension.signedCertTimestampStringizer),
+    CR_SIGNED_CERT_TIMESTAMP (0x0012, "signed_certificate_timstamp",
+                    SSLHandshake.CERTIFICATE_REQUEST,
+                    ProtocolVersion.PROTOCOLS_OF_13,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    SignedCertTimestampExtension.signedCertTimestampStringizer),
 
     // Extensions defined in RFC 7250 (Using Raw Public Keys in TLS and DTLS)
     CLIENT_CERT_TYPE        (0x0013, "client_certificate_type"),
@@ -457,6 +492,44 @@ enum SSLExtension implements SSLStringizer {
                                 KeyShareExtension.hrrNetworkReproducer,
                                 null, null, null, null,
                                 KeyShareExtension.hrrStringizer),
+
+    // Extensions defined in RFC 9162 (Certificate Transparency v2.0)
+    CH_TRANSPARENCY_INFO        (0x0034, "transparency_info",
+            SSLHandshake.CLIENT_HELLO,
+            ProtocolVersion.PROTOCOLS_TO_13,
+            TransparencyInfoExtension.chNetworkProducer,
+            TransparencyInfoExtension.chOnLoadConsumer,
+            null,
+            null,
+            null,
+            TransparencyInfoExtension.transparencyInfoStringizer),
+    SH_TRANSPARENCY_INFO        (0x0034, "transparency_info",
+            SSLHandshake.SERVER_HELLO,
+            ProtocolVersion.PROTOCOLS_TO_12,
+            TransparencyInfoExtension.shNetworkProducer,
+            TransparencyInfoExtension.shOnLoadConsumer,
+            null,
+            null,
+            null,
+            TransparencyInfoExtension.transparencyInfoStringizer),
+    CT_TRANSPARENCY_INFO        (0x0034, "transparency_info",
+            SSLHandshake.CERTIFICATE,
+            ProtocolVersion.PROTOCOLS_OF_13,
+            TransparencyInfoExtension.ctNetworkProducer,
+            TransparencyInfoExtension.ctOnLoadConsumer,
+            null,
+            null,
+            null,
+            TransparencyInfoExtension.transparencyInfoStringizer),
+    CR_TRANSPARENCY_INFO        (0x0034, "transparency_info",
+            SSLHandshake.CERTIFICATE_REQUEST,
+            ProtocolVersion.PROTOCOLS_OF_13,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TransparencyInfoExtension.transparencyInfoStringizer),
 
     // Extension defined in RFC 9001
     CH_QUIC_TRANSPORT_PARAMETERS     (0x0039, "quic_transport_parameters",
@@ -716,7 +789,7 @@ enum SSLExtension implements SSLStringizer {
 
     /**
      * A (transparent) specification of extension data.
-     *
+     * <p>
      * This interface contains no methods or constants. Its only purpose is to
      * group all extension data.  All extension data should implement this
      * interface if the data is expected to handle in the following handshake
