@@ -64,9 +64,6 @@ final class SSLConfiguration implements Cloneable {
     // the configured named groups for the "supported_groups" extensions
     String[]                   namedGroups;
 
-    // the maximum protocol version of enabled protocols
-    ProtocolVersion             maximumProtocolVersion;
-
     // Configurations per SSLSocket or SSLEngine instance.
     boolean                     isClientMode;
     boolean                     enableSessionCreation;
@@ -207,8 +204,8 @@ final class SSLConfiguration implements Cloneable {
         if (nstServerCount == null || nstServerCount < 0 ||
             nstServerCount > 10) {
             serverNewSessionTicketCount = SERVER_NST_DEFAULT;
-            if (nstServerCount != null && SSLLogger.isOn &&
-                SSLLogger.isOn("ssl,handshake")) {
+            if (nstServerCount != null && SSLLogger.isOn() &&
+                SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                 SSLLogger.fine(
                     "jdk.tls.server.newSessionTicketCount defaults to " +
                         SERVER_NST_DEFAULT + " as the property was not " +
@@ -216,7 +213,7 @@ final class SSLConfiguration implements Cloneable {
             }
         } else {
             serverNewSessionTicketCount = nstServerCount;
-            if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+            if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                 SSLLogger.fine(
                     "jdk.tls.server.newSessionTicketCount set to " +
                         serverNewSessionTicketCount);
@@ -252,13 +249,6 @@ final class SSLConfiguration implements Cloneable {
                         CustomizedServerSignatureSchemes.signatureSchemes :
                         SupportedSigSchemes.DEFAULT;
         this.namedGroups = NamedGroup.SupportedGroups.namedGroups;
-        this.maximumProtocolVersion = ProtocolVersion.NONE;
-        for (ProtocolVersion pv : enabledProtocols) {
-            if (pv.compareTo(maximumProtocolVersion) > 0) {
-                this.maximumProtocolVersion = pv;
-            }
-        }
-
         // Configurations per SSLSocket or SSLEngine instance.
         this.isClientMode = isClientMode;
         this.enableSessionCreation = true;
@@ -326,13 +316,6 @@ final class SSLConfiguration implements Cloneable {
         sa = params.getProtocols();
         if (sa != null) {
             this.enabledProtocols = ProtocolVersion.namesOf(sa);
-
-            this.maximumProtocolVersion = ProtocolVersion.NONE;
-            for (ProtocolVersion pv : enabledProtocols) {
-                if (pv.compareTo(maximumProtocolVersion) > 0) {
-                    this.maximumProtocolVersion = pv;
-                }
-            }
         }   // otherwise, use the default values
 
         if (params.getNeedClientAuth()) {
@@ -589,7 +572,7 @@ final class SSLConfiguration implements Cloneable {
         String property = System.getProperty(propertyName);
         // this method is called from class initializer; logging here
         // will occasionally pin threads and deadlock if called from a virtual thread
-        if (SSLLogger.isOn && SSLLogger.isOn("ssl,sslctx")
+        if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.SSLCTX)
                 && !Thread.currentThread().isVirtual()) {
             SSLLogger.fine(
                     "System property " + propertyName + " is set to '" +
@@ -618,8 +601,9 @@ final class SSLConfiguration implements Cloneable {
                 if (scheme != null && scheme.isAvailable) {
                     signatureSchemes.add(schemeName);
                 } else {
-                    if (SSLLogger.isOn && SSLLogger.isOn("ssl,sslctx")
-                            && !Thread.currentThread().isVirtual()) {
+                    if (SSLLogger.isOn() &&
+                            SSLLogger.isOn(SSLLogger.Opt.SSLCTX)
+                                && !Thread.currentThread().isVirtual()) {
                         SSLLogger.fine(
                         "The current installed providers do not " +
                               "support signature scheme: " + schemeName);
