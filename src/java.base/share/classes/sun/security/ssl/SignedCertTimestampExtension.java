@@ -39,6 +39,7 @@ import sun.security.ssl.SSLExtension.SSLExtensionSpec;
 import sun.security.ssl.SSLHandshake.HandshakeMessage;
 import sun.security.ssl.SignedCertTimestampV1.X509CertSctV1;
 
+import javax.net.ssl.CertTransType;
 import javax.net.ssl.SignedCertificateTimestamp;
 
 /**
@@ -119,15 +120,12 @@ final class SignedCertTimestampExtension {
 
         private SignedCertTimestampSpec(HandshakeContext hc, ByteBuffer buffer)
                 throws IOException {
-            //TODO
-            sigCertTsList = List.of();
-//            try {
-//                this.sigCertTsList = new ArrayList<>(
-//                        SignedCertificateTimestamp.getSCTList(
-//                                X509CertSctV1.class, buffer));
-//            } catch (IOException ioe) {
-//                throw hc.conContext.fatal(Alert.DECODE_ERROR, ioe);
-//            }
+            try {
+                this.sigCertTsList = SignedCertTimestampV1.getSCTs(
+                        CertTransType.X509_SCT, buffer);
+            } catch (IOException ioe) {
+                throw hc.conContext.fatal(Alert.DECODE_ERROR, ioe);
+            }
         }
 
         @Override
@@ -139,9 +137,7 @@ final class SignedCertTimestampExtension {
                         append(numElem).append(" ").
                         append(numElem == 1 ? "entry" : "entries").
                         append(")\n");
-                sigCertTsList.forEach(sct -> {
-                    sb.append(sct).append("\n\n");
-                });
+                sigCertTsList.forEach(sct -> sb.append(sct).append("\n\n"));
                 sb.append("\n");
                 return sb.toString();
             } else {
@@ -191,7 +187,8 @@ final class SignedCertTimestampExtension {
             }
 
             if (!chc.sslConfig.isAvailable(CH_SIGNED_CERT_TIMESTAMP)) {
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                     SSLLogger.fine("Ignore unavailable extension: " +
                             CH_SIGNED_CERT_TIMESTAMP.name);
                 }
@@ -229,7 +226,8 @@ final class SignedCertTimestampExtension {
             ServerHandshakeContext shc = (ServerHandshakeContext)context;
 
             if (!shc.sslConfig.isAvailable(CH_SIGNED_CERT_TIMESTAMP)) {
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                     SSLLogger.fine("Ignore unavailable extension: " +
                         CH_SIGNED_CERT_TIMESTAMP.name);
                 }
@@ -277,7 +275,8 @@ final class SignedCertTimestampExtension {
             if (!shc.handshakeExtensions.containsKey(
                     CH_SIGNED_CERT_TIMESTAMP)) {
                 // Ignore, no signed_certificate_timestamp extension requested.
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                     SSLLogger.finest("Ignore unavailable extension: " +
                             CH_SIGNED_CERT_TIMESTAMP.name);
                 }
@@ -287,9 +286,10 @@ final class SignedCertTimestampExtension {
 
             // Is it a session resuming?
             if (shc.isResumption) {
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                     SSLLogger.finest(
-                        "No status_request response for session resuming");
+                        "No status_request response for session resumption");
                 }
 
                 return null;        // ignore the extension
@@ -298,9 +298,9 @@ final class SignedCertTimestampExtension {
             // For right now, the server-side application of SCTs into
             // the ServerHello message is not complete.  So we'll
             // return null for right now and not do CT.  Eventually extData
-            // will contain the serialized SignedCertificateTimestampList
+            // will contain a serialized SignedCertificateTimestampList
             byte[] extData = null;
-            if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+            if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                 SSLLogger.finest("Warning: ServerHello CT delivery " +
                         "currently not implemented");
             }
@@ -348,7 +348,7 @@ final class SignedCertTimestampExtension {
             // Since we've received a legitimate signed_certificate_timestamp
             // in the ServerHello we can activate the CT feature flag.
             //chc.certTransActive = true;
-            if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
+            if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                 SSLLogger.finest("Received " + sctSpec.sigCertTsList.size() +
                         " SCT entries from ServerHello extension");
             }
@@ -415,13 +415,15 @@ final class SignedCertTimestampExtension {
                 // added to the cache.
                 chc.handshakeExtensions.put(CT_SIGNED_CERT_TIMESTAMP, sctSpec);
                 //chc.certTransActive = true;
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake,verbose")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
                     SSLLogger.finest("Received " +
                             sctSpec.sigCertTsList.size() +
                             " SCT entries from Certificate Message extension");
                 }
             } else {
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake,verbose")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
                     SSLLogger.finest("Ignoring SCT data on resumed session");
                 }
             }

@@ -39,18 +39,20 @@ import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.text.MessageFormat;
 import java.util.*;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLProtocolException;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.*;
 import javax.security.auth.x500.X500Principal;
-import static sun.security.ssl.ClientAuthType.CLIENT_AUTH_REQUIRED;
+
+import sun.security.provider.certpath.CertId;
+import sun.security.provider.certpath.OCSPResponse;
 import sun.security.ssl.ClientHello.ClientHelloMessage;
 import sun.security.ssl.SSLHandshake.HandshakeMessage;
+import sun.security.ssl.SignedCertTimestampExtension.SignedCertTimestampSpec;
 import sun.security.ssl.X509Authentication.X509Credentials;
 import sun.security.ssl.X509Authentication.X509Possession;
+import sun.security.x509.SerialNumber;
+
+import static sun.security.ssl.ClientAuthType.CLIENT_AUTH_REQUIRED;
+import static sun.security.ssl.SSLExtension.SH_SIGNED_CERT_TIMESTAMP;
 
 /**
  * Pack of the CertificateMessage handshake message.
@@ -69,27 +71,31 @@ final class CertificateMessage {
     /**
      * The Certificate handshake message for TLS 1.2 and previous
      * SSL/TLS protocol versions.
-     *
+     * <p>
      * In server mode, the certificate handshake message is sent whenever the
      * agreed-upon key exchange method uses certificates for authentication.
      * In client mode, this message is only sent if the server requests a
      * certificate for client authentication.
-     *
-     *       opaque ASN.1Cert<1..2^24-1>;
-     *
+     * <pre>
+     * opaque ASN.1Cert<1..2^24-1>;
+     * </pre>
      * SSL 3.0:
-     *       struct {
-     *           ASN.1Cert certificate_list<1..2^24-1>;
-     *       } Certificate;
+     * <pre>
+     * struct {
+     *      ASN.1Cert certificate_list<1..2^24-1>;
+     * } Certificate;
+     * </pre>
      * Note: For SSL 3.0 client authentication, if no suitable certificate
      * is available, the client should send a no_certificate alert instead.
      * This alert is only a warning; however, the server may respond with
      * a fatal handshake failure alert if client authentication is required.
-     *
+     * </p>
      * TLS 1.0/1.1/1.2:
-     *       struct {
-     *           ASN.1Cert certificate_list<0..2^24-1>;
-     *       } Certificate;
+     * <pre>
+     * struct {
+     *      ASN.1Cert certificate_list<0..2^24-1>;
+     * } Certificate;
+     * </pre>
      */
     static final class T12CertificateMessage extends HandshakeMessage {
         final List<byte[]> encodedCertChain;
@@ -655,6 +661,12 @@ final class CertificateMessage {
                 // Once the server certificate chain has been validated, set
                 // the certificate chain in the TLS session.
                 chc.handshakeSession.setPeerCertificates(certs);
+
+                // At this point we will have received signed certificate
+                // timestamps from all three potential sources.  Add them
+                // to the SSLSession.
+                addSctsToSession(chc, certs);
+
             } catch (CertificateException ce) {
                 throw chc.conContext.fatal(getCertificateAlert(chc, ce), ce);
             }
@@ -1386,5 +1398,58 @@ final class CertificateMessage {
         }
 
         return alert;
+    }
+
+    private static void addSctsToSession(ClientHandshakeContext chc,
+            X509Certificate[] certs) throws IOException {
+        // In its current implementation, we only expect to see signed cert
+        // timestamps in TLS certificates.  We'll pull the current Set of
+        // SCTs from the session SCT cache.
+        Set<CertTransElement> leafScts = chc.handshakeSession.certTransCache.
+                get(certs[0]);
+
+        // Pull any embedded pre-cert SCTs from the TLS cert
+        List<SignedCertificateTimestamp> newScts =
+                SignedCertTimestampV1.getSCTListFromCert(certs[0]);
+
+        // Second, pull any SCTs from TLS extensions.  They will be attached
+        // to the handshake context differently depending on which version
+        // of TLS is used (<= 1.2 vs. >= 1.3)
+        if (chc.negotiatedProtocol.useTLS13PlusSpec()) {
+            // TODO: TLS 1.3 stuff
+        } else {
+            var spec = chc.handshakeExtensions.get(SH_SIGNED_CERT_TIMESTAMP);
+            if (spec instanceof SignedCertTimestampSpec sctSpec &&
+                    !sctSpec.sigCertTsList.isEmpty()) {
+                newScts.addAll(sctSpec.sigCertTsList);
+            }
+        }
+
+        // Finally, walk through any OCSP responses.  Any responses for the
+        // TLS certificate should be checked for timestamps and added to our
+        // List.
+        // In order to parse the OCSP response properly, we need a CertId
+        // and therefore need the issuer to be available.
+        if (certs.length > 1 && certs[1] != null) {
+            CertId cid = new CertId(certs[1],
+                    new SerialNumber(certs[0].getSerialNumber()));
+            for (byte[] respDer : chc.handshakeSession.getStatusResponses()) {
+                OCSPResponse oResp = new OCSPResponse(respDer);
+                OCSPResponse.SingleResponse sr = oResp.getSingleResponse(cid);
+                if (sr != null) {
+                    List<SignedCertificateTimestamp> oScts =
+                            SignedCertTimestampV1.getSCTListFromOCSP(sr);
+                    newScts.addAll(oScts);
+                }
+            }
+        }
+
+        if (leafScts == null) {
+            leafScts = new HashSet<>();
+            leafScts.addAll(newScts);
+            chc.handshakeSession.certTransCache.put(certs[0], leafScts);
+        } else {
+            leafScts.addAll(newScts);
+        }
     }
 }

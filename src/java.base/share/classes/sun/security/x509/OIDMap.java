@@ -101,6 +101,12 @@ public class OIDMap {
                                         FreshestCRLExtension.NAME;
     private static final String OCSPNOCHECK = ROOT + "." +
                                         OCSPNoCheckExtension.NAME;
+    private static final String SIGNED_CERT_TIMESTAMP_LIST = ROOT + "." +
+            SignedCertificateTimestampListExtension.X509_NAME;
+    private static final String CERT_TRANSPARENCY_POISON = ROOT + "." +
+            CertTransPoisonExtension.NAME;
+    private static final String SIGNED_CERT_TIMESTAMP_LIST_OCSP = ROOT + "." +
+            SignedCertificateTimestampListExtension.OCSP_NAME;
 
     /** Map ObjectIdentifier(oid) -> OIDInfo(info) */
     private static final Map<ObjectIdentifier,OIDInfo> oidMap;
@@ -161,6 +167,17 @@ public class OIDMap {
                     "sun.security.x509.FreshestCRLExtension");
         addInternal(OCSPNOCHECK, PKIXExtensions.OCSPNoCheck_Id,
                     "sun.security.x509.OCSPNoCheckExtension");
+        addInternal(SIGNED_CERT_TIMESTAMP_LIST,
+                PKIXExtensions.SignedCertificateTimestampList_Id,
+                "sun.security.x509." +
+                    "SignedCertificateTimestampListExtension$PreCertSCTListExt");
+        addInternal(CERT_TRANSPARENCY_POISON,
+                PKIXExtensions.CertificateTransparencyPoison_Id,
+                "sun.security.x509.CertTransPoisonExtension");
+        addInternal(SIGNED_CERT_TIMESTAMP_LIST_OCSP,
+                PKIXExtensions.SignedCertificateTimestampListOCSP_Id,
+                "sun.security.x509." +
+                    "SignedCertificateTimestampListExtension$OCSPSCTListExt");
     }
 
     /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -57,6 +57,20 @@ public interface SignedCertificateTimestamp extends CertTransElement {
      *         the signed certificate timestamp.
      */
     Instant getTimestamp();
+
+    /**
+     * Return the name of the signing algorithm for this Signature object.
+     * The name should be a standard Java Security name (such as
+     * "SHA256withECDSA").  See the <a href=
+     * "{@docRoot}/../../specs/security/standard-names.html#messagedigest-algorithms">
+     * Java Security Standard Algorithm Names Specification</a>
+     * for information about standard algorithm names.
+     *
+     * @spec security/standard-names.html Java Security Standard Algorithm Names
+     *
+     * @return the name of the algorithm
+     */
+    String getSignatureAlgorithm();
 
     /**
      * Return the encoded signature data.

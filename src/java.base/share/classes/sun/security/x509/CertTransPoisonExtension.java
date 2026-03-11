@@ -29,7 +29,7 @@ package sun.security.x509;
  * Represent the Signed Certificate Timestamp List extension.
  * <p>
  * This extension, should only be present in certificate transparency
- * precertificate entries.  Its presence in certificates prevents the use
+ * pre-certificate entries.  Its presence in certificates prevents the use
  * of the certificate in standard PKIX path validation.
  * <p>
  * The structure of this extension is a simple ASN.1 NULL.

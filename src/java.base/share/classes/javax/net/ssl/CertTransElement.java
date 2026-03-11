@@ -66,5 +66,4 @@ public interface CertTransElement {
      * @throws IOException if any encoding errors occur.
      */
     byte[] getEncoded() throws IOException;
-
 }

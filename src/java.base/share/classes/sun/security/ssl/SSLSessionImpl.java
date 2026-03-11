@@ -30,13 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.ReentrantLock;
@@ -119,7 +113,7 @@ final class SSLSessionImpl extends ExtendedSSLSession {
                                         new ConcurrentLinkedQueue<>();
 
     // Certificate Transparency object cache
-    private final CtCache certTransCache = new CtCache();
+    final Map<X509Certificate, Set<CertTransElement>> certTransCache;
 
     /*
      * Is the session currently re-established with a session-resumption
@@ -170,6 +164,7 @@ final class SSLSessionImpl extends ExtendedSSLSession {
         this.creationTime = System.currentTimeMillis();
         this.identificationProtocol = null;
         this.boundValues = new ConcurrentHashMap<>();
+        this.certTransCache = new ConcurrentHashMap<>();
     }
 
     /*
@@ -225,6 +220,7 @@ final class SSLSessionImpl extends ExtendedSSLSession {
         this.creationTime = creationTime;
         this.identificationProtocol = hc.sslConfig.identificationProtocol;
         this.boundValues = new ConcurrentHashMap<>();
+        this.certTransCache = new ConcurrentHashMap<>();
 
         if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.SESSION)) {
              SSLLogger.finest("Session initialized:  " + this);
@@ -258,6 +254,7 @@ final class SSLSessionImpl extends ExtendedSSLSession {
         this.negotiatedMaxFragLen = baseSession.negotiatedMaxFragLen;
         this.maximumPacketSize = baseSession.maximumPacketSize;
         this.boundValues = baseSession.boundValues;
+        this.certTransCache = baseSession.certTransCache;
 
         if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.SESSION)) {
              SSLLogger.finest("Session initialized:  " + this);
@@ -311,6 +308,7 @@ final class SSLSessionImpl extends ExtendedSSLSession {
         int len;
         byte[] b;
         boundValues = new ConcurrentHashMap<>();
+        certTransCache = new ConcurrentHashMap<>();     // TODO - cache?
         this.protocolVersion =
                 ProtocolVersion.valueOf(Record.getInt16(buf));
 

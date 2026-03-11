@@ -238,7 +238,7 @@ public class PKIXExtensions {
 
     /**
      * This extension is used as a poison extension in certificate transparency
-     * precertificate entries.  The presence of this extension prevents
+     * pre-certificate entries.  The presence of this extension prevents
      * standard PKIX path validation from succeeding.
      */
     public static final ObjectIdentifier CertificateTransparencyPoison_Id =
@@ -250,11 +250,4 @@ public class PKIXExtensions {
      */
     public static final ObjectIdentifier SignedCertificateTimestampListOCSP_Id =
             ObjectIdentifier.of(KnownOIDs.SignedCertificateTimestampListOCSP);
-
-    /**
-     * This extension is used to deliver CTv2.0 TransItem structures in
-     * X.509 Certificates.
-     */
-    public static final ObjectIdentifier TransparencyInformation_Id =
-            ObjectIdentifier.of(KnownOIDs.TransparencyInformation);
 }

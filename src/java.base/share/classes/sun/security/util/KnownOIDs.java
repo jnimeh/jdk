@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -415,8 +415,7 @@ public enum KnownOIDs {
     // Certificate Transparency OIDs (RFC 6962)
     SignedCertificateTimestampList("1.3.6.1.4.1.11129.2.4.2"),
     CertificateTransparencyPoison("1.3.6.1.4.1.11129.2.4.3"),
-    SignedCertificateTimestampListOCSP("1.3.6.1.4.1.11129.2.4.5"),
-    TransparencyInformation("1.3.101.75");
+    SignedCertificateTimestampListOCSP("1.3.6.1.4.1.11129.2.4.5");
 
     private final String stdName;
     private final String oid;

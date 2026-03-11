@@ -169,6 +169,31 @@ public abstract class SignedCertTimestampV1 implements
     }
 
     /**
+     * Retrieve the fully encoded form of the SCT as it was provided to
+     * the constructor.  Note that the encoded form is not a SerializedSCT
+     * in that it does not have the leading length.  This will allow the
+     * resulting byte array to be passed directly into Record.putBytes16().
+     *
+     * @return a copy of the encoded SCT without the leading 16-bit integer
+     *      length.
+     */
+    @Override
+    public byte[] getEncoded() {
+        return encodedSCT.clone();
+    }
+
+    /**
+     * Return the signature algorithm used for this SCT as a JCE Signature
+     * standard name.
+     *
+     * @return the String algorithm name for the signature.
+     */
+    @Override
+    public String getSignatureAlgorithm() {
+        return sigScheme.algorithm;
+    }
+
+    /**
      * Retrieve a copy of the digital signature on the SCT object.
      *
      * @return a copy of the signature data.
@@ -206,7 +231,7 @@ public abstract class SignedCertTimestampV1 implements
      */
     @Override
     public boolean verify(X509Certificate subjectCert, PublicKey issuerKey,
-                          PublicKey logKey) throws SignatureException  {
+            PublicKey logKey) throws SignatureException  {
         try {
             // Create the signature object the first time it is needed.
             if (sigVerifier == null) {
@@ -239,16 +264,6 @@ public abstract class SignedCertTimestampV1 implements
     }
 
     /**
-     * Return the signature algorithm used for this SCT as a JCE Signature
-     * standard name.
-     *
-     * @return the String algorithm name for the signature.
-     */
-    public String getSignatureAlgorithm() {
-        return sigScheme.algorithm;
-    }
-
-    /**
      * Return the JCE standard name for the key algorithm used to verify
      * the signature on this SCT object.
      *
@@ -256,21 +271,6 @@ public abstract class SignedCertTimestampV1 implements
      */
     public String getLogKeyAlgorithm() {
         return sigScheme.keyAlgorithm;
-    }
-
-
-    /**
-     * Retrieve the fully encoded form of the SCT as it was provided to
-     * the constructor.  Note that the encoded form is not a SerializedSCT
-     * in that it does not have the leading length.  This will allow the
-     * resulting byte array to be passed directly into Record.putBytes16().
-     *
-     * @return a copy of the encoded SCT without the leading 16-bit integer
-     *      length.
-     */
-    @Override
-    public byte[] getEncoded() {
-        return encodedSCT.clone();
     }
 
     /**
@@ -369,7 +369,8 @@ public abstract class SignedCertTimestampV1 implements
                             extId, extData.length)));
             sb.append("\n}");
         }
-        sb.append("\nSignature (not shown, ").append(signature.length).
+        sb.append("\nSignature, ").append(sigScheme.name).
+                append(" (not shown, ").append(signature.length).
                 append(" bytes)");
 
         return sb.toString();
@@ -394,16 +395,16 @@ public abstract class SignedCertTimestampV1 implements
      *                as a ByteBuffer.  The buffer should be positioned at the
      *                leading length for the sct_list.
      *
-     * @return a {@code Set} containing the SCTs as {@code CertTransElement}
-     * objects.
+     * @return a {@code List} containing the SCTs as
+     *         {@code SignedCertificateTimestamp} objects.
      *
      * @throws IOException if the SignedCertificateTimestampList is empty,
      *         or any parsing errors occur.
      * @throws IllegalArgumentException if the {@code sctType} parameter is
      *         a value other than X509_SCT or PRECERT_SCT.
      */
-    public static Set<CertTransElement> getSCTs(CertTransType sctType,
-            ByteBuffer encoded) throws IOException {
+    public static List<SignedCertificateTimestamp> getSCTs(
+            CertTransType sctType, ByteBuffer encoded) throws IOException {
         if (sctType != CertTransType.X509_SCT && sctType !=
                 CertTransType.PRECERT_SCT) {
             throw new IllegalArgumentException("Incorrect CertTransType: " +
@@ -420,23 +421,24 @@ public abstract class SignedCertTimestampV1 implements
         }
 
         // Parse each SerializedSCT structure
-        try {
-            Set<CertTransElement> sctList = new LinkedHashSet<>();
-            while (encoded.hasRemaining()) {
-                // Slice the serialized SCT list byte buffer to contain a
-                // single encoded SCT after reading the vector length.
-                int singleSctLen = Record.getInt16(encoded);
-                ByteBuffer singleSct = encoded.slice(encoded.position(),
-                        singleSctLen);
-                sctList.add(sctType == CertTransType.PRECERT_SCT ?
-                        new PreCertSctV1(singleSct) :
-                        new X509CertSctV1(singleSct));
-                encoded.position(encoded.position() + singleSctLen);
-            }
-            return sctList;
-        } catch (GeneralSecurityException gse) {
-            throw new IOException(gse);
+        List<SignedCertificateTimestamp> sctList = new LinkedList<>();
+        while (encoded.hasRemaining()) {
+            // Slice the serialized SCT list byte buffer to contain a
+            // single encoded SCT after reading the vector length.
+            int singleSctLen = Record.getInt16(encoded);
+            ByteBuffer singleSct = encoded.slice(encoded.position(),
+                    singleSctLen);
+            sctList.add(sctType == CertTransType.PRECERT_SCT ?
+                    new PreCertSctV1(singleSct) :
+                    new X509CertSctV1(singleSct));
+            encoded.position(encoded.position() + singleSctLen);
         }
+        return sctList;
+    }
+
+    public static List<SignedCertificateTimestamp> getSCTs(
+            CertTransType sctType, byte[] encoded) throws IOException {
+        return getSCTs(sctType, ByteBuffer.wrap(encoded));
     }
 
     /**
@@ -445,15 +447,15 @@ public abstract class SignedCertTimestampV1 implements
      *
      * @param cert the X509Certificate object to be parsed
      *
-     * @return a {@code Set} of signed certificate timestamps found in the
+     * @return a {@code List} of signed certificate timestamps found in the
      *         signedCertificateTimestampList certificate extension.  If the
-     *         extension is not present, an empty {@code Set} will be returned.
+     *         extension is not present, an empty {@code List} will be returned.
      *
      * @throws IOException if any parsing errors occur.
      */
-    static Set<CertTransElement> getSCTListFromCert(X509Certificate cert)
-            throws IOException {
-        Set<CertTransElement> certSctSet = Collections.emptySet();
+    static List<SignedCertificateTimestamp> getSCTListFromCert(
+            X509Certificate cert) throws IOException {
+        List<SignedCertificateTimestamp> certSctSet = Collections.emptyList();
         if (cert != null) {
             byte[] extDataDer = cert.getExtensionValue(
                     SignedCertificateTimestampList_Id.toString());
@@ -463,7 +465,8 @@ public abstract class SignedCertTimestampV1 implements
                         new DerValue(encapsOctStr.getOctetString());
                 certSctSet = getSCTs(CertTransType.PRECERT_SCT,
                         ByteBuffer.wrap(innerOctStr.getOctetString()));
-                if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake,verbose")) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
                     SSLLogger.fine("Found " + certSctSet.size() +
                             " unique SCT entries from X.509 Certificate");
                 }
@@ -472,29 +475,35 @@ public abstract class SignedCertTimestampV1 implements
         return certSctSet;
     }
 
-    static Set<CertTransElement> getSCTListFromOCSP(X509Certificate subject,
-            X509Certificate issuer, byte[] ocspResponseData)
-            throws IOException {
-        Set<CertTransElement> ocspSctSet = Collections.emptySet();
+    /**
+     * Obtain any signed certificate timestamp objects from the SingleResponse
+     * portion of an OCSP response.
+     *
+     * @param sr the {@code SingleResponse} object obtained from an
+     * {@code OCSPResponse}.
+     *
+     * @return a {@code List} of signed certificate timestamp objects
+     *         (if any) from the SingleResponse.  If none are found an empty
+     *         {@code List} will be returned.
+     *
+     * @throws IOException if any errors occur while parsing the SCT list
+     *         extension.
+     */
+    static List<SignedCertificateTimestamp> getSCTListFromOCSP(
+            OCSPResponse.SingleResponse sr) throws IOException {
+        List<SignedCertificateTimestamp> ocspSctSet = Collections.emptyList();
 
-        if (ocspResponseData != null && ocspResponseData.length > 0) {
-            OCSPResponse oResp = new OCSPResponse(ocspResponseData);
-            CertId cid = new CertId(issuer,
-                    new SerialNumber(subject.getSerialNumber()));
-            OCSPResponse.SingleResponse sr = oResp.getSingleResponse(cid);
-            if (sr != null) {
-                Extension sctExt = sr.getSingleExtensions().get(
-                        SignedCertificateTimestampListOCSP_Id.toString());
-                if (sctExt != null) {
-                    // Strip off the leading OCTET STRING encapsulation
-                    DerInputStream dis = new DerInputStream(sctExt.getValue());
-                    ocspSctSet = getSCTs(CertTransType.X509_SCT,
-                            ByteBuffer.wrap(dis.getOctetString()));
-                    if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
-                        SSLLogger.fine("Found " + ocspSctSet.size() +
-                                " unique SCT entries from OCSP response");
-                    }
-                }
+        Extension sctExt = sr.getSingleExtensions().get(
+                SignedCertificateTimestampListOCSP_Id.toString());
+        if (sctExt != null) {
+            // Strip off the leading OCTET STRING encapsulation
+            DerInputStream dis = new DerInputStream(sctExt.getValue());
+            ocspSctSet = getSCTs(CertTransType.X509_SCT,
+                    ByteBuffer.wrap(dis.getOctetString()));
+            if (SSLLogger.isOn() &&
+                    SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
+                SSLLogger.fine("Found " + ocspSctSet.size() +
+                        " unique SCT entries from OCSP response");
             }
         }
         return ocspSctSet;
@@ -549,8 +558,7 @@ public abstract class SignedCertTimestampV1 implements
 
     public static final class PreCertSctV1 extends SignedCertTimestampV1 {
 
-        public PreCertSctV1(ByteBuffer data) throws IOException,
-                NoSuchAlgorithmException {
+        public PreCertSctV1(ByteBuffer data) throws IOException {
             super(CertTransType.PRECERT_SCT, data);
         }
 
