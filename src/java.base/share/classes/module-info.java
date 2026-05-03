@@ -102,6 +102,8 @@ module java.base {
     exports java.nio.file.attribute;
     exports java.nio.file.spi;
     exports java.security;
+    exports java.security.asn1;
+    exports java.security.asn1.types;
     exports java.security.cert;
     exports java.security.interfaces;
     exports java.security.spec;
