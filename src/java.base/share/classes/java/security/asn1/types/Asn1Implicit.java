@@ -10,27 +10,37 @@ import java.util.Objects;
  * Class that represents ASN.1 implicitly tagged types.  {@code Asn1Implicit}
  * objects are wrappers around an underlying ASN.1 data element, whether
  * constructed or primitive.
+ * @param <T> the type of the encapsulated {@code Asn1Object}
  */
-public final class Asn1Implicit implements Asn1Tagged {
+public final class Asn1Implicit<T extends Asn1Object> implements Asn1Tagged<T> {
 
     private final Asn1Tag tag;
-    private final Asn1Object inner;
+    private final T inner;
+
+    private Asn1Implicit(Asn1Tag tag, T inner) {
+        this.tag = tag;
+        this.inner = inner;
+    }
 
     /**
      * Create an {@code Asn1Implicit} object from its underlying
      * {@link Asn1Object}
      *
      * @param tag the desired {@link Asn1Tag} to be applied to this object
-     * @param inner the inner {@link Asn1Object} it wraps
+     * @param inner the inner {@link Asn1Object} (or subclass) it wraps
+     * @param <T> the type of encapsulated data this object holds
+     * @return the {@code Asn1Implicit} object that encapsulates the underlying
+     * ASN.1 object.
      * @throws Asn1Exception if the {@code tag} does not match the
      * primitive/constructed bit of its underlying type.
      */
-    public Asn1Implicit(Asn1Tag tag, Asn1Object inner) {
+    public static <T extends Asn1Object> Asn1Implicit<T> of(
+            Asn1Tag tag, T inner) {
         if (tag.isConstructed() != inner.tag().isConstructed()) {
             throw new Asn1Exception("IMPLICIT must preserve constructed bit");
         }
-        this.tag = Objects.requireNonNull(tag);
-        this.inner = Objects.requireNonNull(inner);
+        return new Asn1Implicit<>(Objects.requireNonNull(tag),
+                Objects.requireNonNull(inner));
     }
 
     /**
@@ -50,7 +60,7 @@ public final class Asn1Implicit implements Asn1Tagged {
      * @return the inner {@link Asn1Object} represented by the tagged object.
      */
     @Override
-    public Asn1Object inner() {
+    public T inner() {
         return inner;
     }
 }
