@@ -14,31 +14,58 @@ public final class Asn1Tag {
     private final boolean constructed;
 
     private static final Map<Integer, Asn1Tag> UNIVERSAL_MAP = Map.ofEntries(
-        new AbstractMap.SimpleImmutableEntry<>(1, Asn1Tags.BOOLEAN),
-        new AbstractMap.SimpleImmutableEntry<>(2, Asn1Tags.INTEGER),
-        new AbstractMap.SimpleImmutableEntry<>(3, Asn1Tags.BIT_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(4, Asn1Tags.OCTET_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(5, Asn1Tags.NULL),
-        new AbstractMap.SimpleImmutableEntry<>(6, Asn1Tags.OBJECT_IDENTIFIER),
-        new AbstractMap.SimpleImmutableEntry<>(7, Asn1Tags.OBJECT_DESCRIPTOR),
-        new AbstractMap.SimpleImmutableEntry<>(8, Asn1Tags.EXTERNAL),
-        new AbstractMap.SimpleImmutableEntry<>(9, Asn1Tags.REAL),
-        new AbstractMap.SimpleImmutableEntry<>(10, Asn1Tags.ENUMERATED),
-        new AbstractMap.SimpleImmutableEntry<>(11, Asn1Tags.EMBEDDED_PDV),
-        new AbstractMap.SimpleImmutableEntry<>(12, Asn1Tags.UTF8String),
-        new AbstractMap.SimpleImmutableEntry<>(16, Asn1Tags.SEQUENCE),
-        new AbstractMap.SimpleImmutableEntry<>(17, Asn1Tags.SET),
-        new AbstractMap.SimpleImmutableEntry<>(18, Asn1Tags.NUMERIC_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(19, Asn1Tags.PRINTABLE_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(20, Asn1Tags.TELETEX_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(21, Asn1Tags.VIDEOTEX_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(22, Asn1Tags.IA5_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(23, Asn1Tags.UTCTIME),
-        new AbstractMap.SimpleImmutableEntry<>(24, Asn1Tags.GENERALIZEDTIME),
-        new AbstractMap.SimpleImmutableEntry<>(25, Asn1Tags.GRAPHIC_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(26, Asn1Tags.VISIBLE_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(27, Asn1Tags.GENERAL_STRING),
-        new AbstractMap.SimpleImmutableEntry<>(28, Asn1Tags.UNIVERSAL_STRING)
+        new AbstractMap.SimpleImmutableEntry<>(1,
+                new Asn1Tag(TagClass.UNIVERSAL, 1, false)),     // Integer
+        new AbstractMap.SimpleImmutableEntry<>(2,
+                new Asn1Tag(TagClass.UNIVERSAL, 2, false)),     // Boolean
+        new AbstractMap.SimpleImmutableEntry<>(3,
+                new Asn1Tag(TagClass.UNIVERSAL, 3, false)),     // Bit String
+        new AbstractMap.SimpleImmutableEntry<>(4,
+                new Asn1Tag(TagClass.UNIVERSAL, 4, false)),     // Octet String
+        new AbstractMap.SimpleImmutableEntry<>(5,
+                new Asn1Tag(TagClass.UNIVERSAL, 5, false)),     // NULL
+        new AbstractMap.SimpleImmutableEntry<>(6,
+                new Asn1Tag(TagClass.UNIVERSAL, 6, false)),     // Object ID
+        new AbstractMap.SimpleImmutableEntry<>(7,
+                new Asn1Tag(TagClass.UNIVERSAL, 7, false)),     // Object Desc
+        new AbstractMap.SimpleImmutableEntry<>(8,
+                new Asn1Tag(TagClass.UNIVERSAL, 8, true)),      // External
+        new AbstractMap.SimpleImmutableEntry<>(9,
+                new Asn1Tag(TagClass.UNIVERSAL, 9, false)),     // Real
+        new AbstractMap.SimpleImmutableEntry<>(10,
+                new Asn1Tag(TagClass.UNIVERSAL, 10, false)),    // Enumerated
+        new AbstractMap.SimpleImmutableEntry<>(11,
+                new Asn1Tag(TagClass.UNIVERSAL, 11, false)),    // Embedded PDV
+        new AbstractMap.SimpleImmutableEntry<>(12,
+                new Asn1Tag(TagClass.UNIVERSAL, 12, false)),    // UTF8 String
+        new AbstractMap.SimpleImmutableEntry<>(16,
+                new Asn1Tag(TagClass.UNIVERSAL, 16, true)),     // Sequence [Of]
+        new AbstractMap.SimpleImmutableEntry<>(17,
+                new Asn1Tag(TagClass.UNIVERSAL, 17, true)),     // Set [Of]
+        new AbstractMap.SimpleImmutableEntry<>(18,
+                new Asn1Tag(TagClass.UNIVERSAL, 18, false)),    // NumericString
+        new AbstractMap.SimpleImmutableEntry<>(19,
+                new Asn1Tag(TagClass.UNIVERSAL, 19, false)),    // PrintableString
+        new AbstractMap.SimpleImmutableEntry<>(20,
+                new Asn1Tag(TagClass.UNIVERSAL, 20, false)),    // Teletex/T61String
+        new AbstractMap.SimpleImmutableEntry<>(21,
+                new Asn1Tag(TagClass.UNIVERSAL, 21, false)),    // VideotexString
+        new AbstractMap.SimpleImmutableEntry<>(22,
+                new Asn1Tag(TagClass.UNIVERSAL, 22, false)),    // IA5String
+        new AbstractMap.SimpleImmutableEntry<>(23,
+                new Asn1Tag(TagClass.UNIVERSAL, 23, false)),    // UTCTime
+        new AbstractMap.SimpleImmutableEntry<>(24,
+                new Asn1Tag(TagClass.UNIVERSAL, 24, false)),    // GeneralizedTime
+        new AbstractMap.SimpleImmutableEntry<>(25,
+                new Asn1Tag(TagClass.UNIVERSAL, 25, false)),    // GraphicString
+        new AbstractMap.SimpleImmutableEntry<>(26,
+                new Asn1Tag(TagClass.UNIVERSAL, 26, false)),    // VisibleString
+        new AbstractMap.SimpleImmutableEntry<>(27,
+                new Asn1Tag(TagClass.UNIVERSAL, 27, false)),    // GeneralString
+        new AbstractMap.SimpleImmutableEntry<>(28,
+                new Asn1Tag(TagClass.UNIVERSAL, 28, false)),    // UniversalString
+        new AbstractMap.SimpleImmutableEntry<>(30,
+                new Asn1Tag(TagClass.UNIVERSAL, 30, false))     // BMPString
     );
 
     /**
@@ -51,7 +78,7 @@ public final class Asn1Tag {
      *                    that is constructed, {@code false} if it is primitive
      * @throws Asn1Exception if the {@code tagNumber} value is negative
      */
-    public Asn1Tag(TagClass tagClass, int tagNumber, boolean constructed) {
+    private Asn1Tag(TagClass tagClass, int tagNumber, boolean constructed) {
         if (tagNumber < 0) {
             throw new Asn1Exception("tagNumber must be >= 0");
         }

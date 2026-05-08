@@ -1,8 +1,6 @@
 package java.security.asn1.types;
 
 import java.security.asn1.*;
-import java.util.Objects;
-
 
 /**
  * ASN.1 class for representing boolean data
@@ -26,7 +24,7 @@ public final class Asn1Boolean implements Asn1Primitive {
      * @param value the underlying {@code boolean} value
      * @return the {@code Asn1Boolean}
      */
-    public Asn1Boolean of(boolean value) {
+    public static Asn1Boolean of(boolean value) {
         return value ? TRUE : FALSE;
     }
 

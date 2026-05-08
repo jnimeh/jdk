@@ -1,5 +1,6 @@
 package java.security.asn1.types;
 
+import java.security.MessageDigest;
 import java.security.asn1.Asn1Exception;
 import java.util.Arrays;
 import java.util.Objects;
@@ -14,12 +15,17 @@ import java.security.asn1.Asn1Tags;
  */
 public final class Asn1BitString implements Asn1Primitive {
 
-    private final byte[] bytes;
+    private final byte[] data;
     private final int unusedBits;
 
     private Asn1BitString(byte[] bytes, int unusedBits) {
-        this.bytes = bytes.clone();
+        this.data = bytes;                  // already copied and != null
         this.unusedBits = unusedBits;
+        // Mask the unused bits in the last byte
+        if (this.data.length > 0 && this.unusedBits > 0) {
+            int mask = (0xFF << this.unusedBits) & 0xFF;
+            this.data[this.data.length - 1] &= (byte)mask;
+        }
     }
 
     /**
@@ -51,11 +57,11 @@ public final class Asn1BitString implements Asn1Primitive {
         if (unusedBits < 0 || unusedBits > 7) {
             throw new Asn1Exception("unusedBits must be 0..7");
         }
-        if (bytes.length == 0 && unusedBits != 0) {
+        if (dataCopy.length == 0 && unusedBits != 0) {
             throw new Asn1Exception("Cannot have unused bits with empty array");
         }
-        if (bytes.length > 0 && unusedBits > 0) {
-            bytes[bytes.length - 1] &= (byte)(0xFF << unusedBits);
+        if (dataCopy.length > 0 && unusedBits > 0) {
+            dataCopy[dataCopy.length - 1] &= (byte)(0xFF << unusedBits);
         }
         return new Asn1BitString(dataCopy, unusedBits);
     }
@@ -66,7 +72,7 @@ public final class Asn1BitString implements Asn1Primitive {
      * @return the data bytes
      */
     public byte[] bytes() {
-        return bytes.clone();
+        return data.clone();
     }
 
     /**
@@ -92,33 +98,9 @@ public final class Asn1BitString implements Asn1Primitive {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || o.getClass() != getClass()) return false;
-
         Asn1BitString other = (Asn1BitString) o;
-
-        int diff = 0;
-
-        // compare length and unused bits
-        diff |= this.unusedBits ^ other.unusedBits;
-        diff |= this.bytes.length ^ other.bytes.length;
-
-        int len = Math.min(this.bytes.length, other.bytes.length);
-
-        // Compare all bytes except last
-        for (int i = 0; i < len - 1; i++) {
-            diff |= (this.bytes[i] ^ other.bytes[i]);
-        }
-
-        // Compare last byte with masking
-        if (len > 0) {
-            int b1 = this.bytes[len - 1] & 0xFF;
-            int b2 = other.bytes[len - 1] & 0xFF;
-            int mask = 0xFF << this.unusedBits;
-
-            // b1 is already normalized in the constructor
-            diff |= (b1 ^ mask) ^ (b2 & mask);
-        }
-
-        return diff == 0;
+        return this.unusedBits == other.unusedBits &&
+                MessageDigest.isEqual(this.data, other.data);
     }
 
     @Override
@@ -126,7 +108,7 @@ public final class Asn1BitString implements Asn1Primitive {
         // Because we've already normalized the unused bits in
         // the constructor, we can simply consume the entire byte
         // array and stir in the unused bit count.
-        int result = Arrays.hashCode(bytes);
+        int result = Arrays.hashCode(data);
         result = 31 * result + unusedBits;
         return result;
     }
