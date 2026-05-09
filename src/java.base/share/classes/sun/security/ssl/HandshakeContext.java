@@ -146,6 +146,10 @@ abstract class HandshakeContext implements ConnectionContext {
     List<SNIServerName>                     requestedServerNames;
     SNIServerName                           negotiatedServerName;
 
+    // Used for tracking and correlating certificates to their TLS extensions
+    // during extension production/consumption.
+    CertificateMessage.CertificateEntry currentCertEntry;
+
     // OCSP Stapling info
     boolean                                 staplingActive = false;
 

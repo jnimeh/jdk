@@ -50,11 +50,9 @@ class ServerHandshakeContext extends HandshakeContext {
     SSLPossession interimAuthn;
 
     StatusResponseManager.StaplingParameters stapleParams;
-    CertificateMessage.CertificateEntry currentCertEntry;
     private static final long DEFAULT_STATUS_RESP_DELAY = 5000L;
     final long statusRespTimeout;
     boolean acceptCliHelloFragments = false;
-
 
     ServerHandshakeContext(SSLContextImpl sslContext,
             TransportContext conContext) throws IOException {

@@ -27,7 +27,6 @@ package sun.security.ssl;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.NoSuchAlgorithmException;
 import java.security.MessageDigest;
 import java.security.GeneralSecurityException;
 import java.security.PublicKey;
@@ -40,18 +39,15 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import javax.net.ssl.CertTransElement;
 import javax.net.ssl.CertTransType;
 import javax.net.ssl.SignedCertificateTimestamp;
 
-import sun.security.provider.certpath.CertId;
 import sun.security.provider.certpath.OCSPResponse;
 import sun.security.util.DerValue;
 import sun.security.util.DerInputStream;
 import sun.security.util.DerOutputStream;
 import sun.security.util.ObjectIdentifier;
 import static sun.security.x509.PKIXExtensions.*;
-import sun.security.x509.SerialNumber;
 
 /**
  * This class defines the signed certificate timestamp (SCT) from RFC 6962.
@@ -82,7 +78,7 @@ public abstract class SignedCertTimestampV1 implements
     private static final int CTVERSION = 1;
 
     protected final CertTransType ctType;
-    protected final int version;
+    protected final int version;    // encoded version number (version - 1)
     protected final byte[] logId;
     protected final Instant timestamp;
     protected final Map<Integer, byte[]> sctExtensions;
@@ -145,7 +141,7 @@ public abstract class SignedCertTimestampV1 implements
      */
     @Override
     public int getVersion() {
-        return version;
+        return version + 1;     // Version is the encoded integer value + 1
     }
 
     /**
@@ -356,7 +352,7 @@ public abstract class SignedCertTimestampV1 implements
         StringBuilder sb = new StringBuilder();
 
         sb.append("Signed Certificate Timestamp:");
-        sb.append("\nVersion: ").append(version);
+        sb.append("\nVersion: ").append(version + 1);
         sb.append("\nLog ID: ").append(Utilities.toHexString(logId));
         sb.append("\nTimestamp: ").append(DateTimeFormatter.RFC_1123_DATE_TIME.
                 format(timestamp.atOffset(ZoneOffset.UTC)));
@@ -421,7 +417,7 @@ public abstract class SignedCertTimestampV1 implements
         }
 
         // Parse each SerializedSCT structure
-        List<SignedCertificateTimestamp> sctList = new LinkedList<>();
+        List<SignedCertificateTimestamp> sctList = new ArrayList<>();
         while (encoded.hasRemaining()) {
             // Slice the serialized SCT list byte buffer to contain a
             // single encoded SCT after reading the vector length.
@@ -455,7 +451,7 @@ public abstract class SignedCertTimestampV1 implements
      */
     static List<SignedCertificateTimestamp> getSCTListFromCert(
             X509Certificate cert) throws IOException {
-        List<SignedCertificateTimestamp> certSctSet = Collections.emptyList();
+        List<SignedCertificateTimestamp> certSctSet = new ArrayList<>();
         if (cert != null) {
             byte[] extDataDer = cert.getExtensionValue(
                     SignedCertificateTimestampList_Id.toString());
@@ -508,53 +504,6 @@ public abstract class SignedCertTimestampV1 implements
         }
         return ocspSctSet;
     }
-
-//    static void addSCTListFromOCSP(ClientHandshakeContext chc)
-//            throws IOException {
-//        X509Certificate[] certs = (X509Certificate[])
-//                chc.handshakeSession.getPeerCertificates();
-//        List<byte[]> oResps = chc.handshakeSession.getStatusResponses();
-//
-//        // We will need at least the server certificate and its issuer to
-//        // Create a CertID so we only scoop up responses for that cert.
-//        // If we don't have them then log it and bail out.
-//        if (certs.length < 2) {
-//            if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
-//                SSLLogger.fine("Warning: unable to build CertId from peer " +
-//                        "certificate list, no issuer found");
-//            }
-//            return;
-//        }
-//
-//        if (!oResps.isEmpty()) {
-//            byte[] oRespData = oResps.getFirst();
-//            if (oRespData.length > 0) {
-//                OCSPResponse oResp = new OCSPResponse(oRespData);
-//                CertId cid = new CertId(certs[1],
-//                        new SerialNumber(certs[0].getSerialNumber()));
-//                OCSPResponse.SingleResponse sr = oResp.getSingleResponse(cid);
-//                if (sr != null) {
-//                    Extension sctExt = sr.getSingleExtensions().get(
-//                            SignedCertificateTimestampListOCSP_Id.toString());
-//                    if (sctExt != null) {
-//                        // Strip off the leading OCTET STRING encapsulation
-//                        DerInputStream dis = new DerInputStream(
-//                                sctExt.getValue());
-//                        //TODO
-//                        List<X509CertSctV1> extSctList =
-//                                SignedCertificateTimestamp.getSCTList(
-//                                        X509CertSctV1.class,
-//                                        dis.getOctetString());
-//                        chc.sctCache.addSct(certs[0], extSctList);
-//                        if (SSLLogger.isOn && SSLLogger.isOn("ssl,handshake")) {
-//                            SSLLogger.fine("Added " + extSctList.size() +
-//                                    " entries to handshake SCT List");
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
 
     public static final class PreCertSctV1 extends SignedCertTimestampV1 {
 

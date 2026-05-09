@@ -86,14 +86,14 @@ final class CertStatusExtension {
 
     /**
      * The "status_request" extension.
-     *
+     * <p>
      * RFC6066 defines the TLS extension,"status_request" (type 0x5),
      * which allows the client to request that the server perform OCSP
      * on the client's behalf.
-     *
+     * <p>
      * The "extension data" field of this extension contains a
      * "CertificateStatusRequest" structure:
-     *
+     * <pre>
      *      struct {
      *          CertificateStatusType status_type;
      *          select (status_type) {
@@ -110,6 +110,7 @@ final class CertStatusExtension {
      *
      *      opaque ResponderID<1..2^16-1>;
      *      opaque Extensions<0..2^16-1>;
+     * </pre>
      */
     static final class CertStatusRequestSpec implements SSLExtensionSpec {
         static final CertStatusRequestSpec DEFAULT =
@@ -123,7 +124,7 @@ final class CertStatusExtension {
 
         private CertStatusRequestSpec(HandshakeContext hc,
                 ByteBuffer buffer) throws IOException {
-            // Is it a empty extension_data?
+            // Does it have empty extension_data?
             if (buffer.remaining() == 0) {
                 // server response
                 this.statusRequest = null;
@@ -166,13 +167,14 @@ final class CertStatusExtension {
      * Defines the CertificateStatus response structure as outlined in
      * RFC 6066.  This will contain a status response type, plus a single,
      * non-empty OCSP response in DER-encoded form.
-     *
+     * <pre>
      * struct {
      *     CertificateStatusType status_type;
      *     select (status_type) {
      *         case ocsp: OCSPResponse;
      *     } response;
      * } CertificateStatus;
+     * </pre>
      */
     static final class CertStatusResponseSpec implements SSLExtensionSpec {
         final CertStatusResponse statusResponse;
@@ -644,7 +646,7 @@ final class CertStatusExtension {
             // The StaplingParameters in the ServerHandshakeContext will
             // contain the info about what kind of stapling (if any) to
             // perform and whether this status_request extension should be
-            // produced or the status_request_v2 (found in a different producer)
+            // produced or the status_request_v2 (in a different producer).
             // No explicit check is required for isStaplingEnabled here.  If
             // it is false then stapleParams will be null.  If it is true
             // then stapleParams may or may not be false and the check below
@@ -743,13 +745,13 @@ final class CertStatusExtension {
 
     /**
      * The "status_request_v2" extension.
-     *
+     * <p>
      * RFC6961 defines the TLS extension,"status_request_v2" (type 0x5),
      * which allows the client to request that the server perform OCSP
      * on the client's behalf.
-     *
+     * <p>
      * The RFC defines an CertStatusReqItemV2 structure:
-     *
+     * <pre>
      *      struct {
      *          CertificateStatusType status_type;
      *          uint16 request_length;
@@ -772,6 +774,7 @@ final class CertStatusExtension {
      *        CertificateStatusRequestItemV2
      *                         certificate_status_req_list<1..2^16-1>;
      *      } CertificateStatusRequestListV2;
+     * </pre>
      */
     static final class CertStatusRequestV2Spec implements SSLExtensionSpec {
         static final CertStatusRequestV2Spec DEFAULT =
@@ -786,7 +789,7 @@ final class CertStatusExtension {
 
         private CertStatusRequestV2Spec(HandshakeContext hc,
                 ByteBuffer message) throws IOException {
-            // Is it a empty extension_data?
+            // Does it have empty extension_data?
             if (message.remaining() == 0) {
                 // server response
                 this.certStatusRequests = new CertStatusRequest[0];
@@ -1010,7 +1013,7 @@ final class CertStatusExtension {
             // The StaplingParameters in the ServerHandshakeContext will
             // contain the info about what kind of stapling (if any) to
             // perform and whether this status_request extension should be
-            // produced or the status_request_v2 (found in a different producer)
+            // produced or the status_request_v2 (in a different producer).
             // No explicit check is required for isStaplingEnabled here.  If
             // it is false then stapleParams will be null.  If it is true
             // then stapleParams may or may not be false and the check below
@@ -1151,13 +1154,11 @@ final class CertStatusExtension {
                                         shc.currentCertEntry.encoded));
                 byte[] respBytes = shc.stapleParams.responseMap.get(x509Cert);
                 if (respBytes == null) {
-                    // We're done with this entry.  Clear it from the context
                     if (SSLLogger.isOn() &&
                         SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
                         SSLLogger.finest("No status response found for " +
                                 x509Cert.getSubjectX500Principal());
                     }
-                    shc.currentCertEntry = null;
                     return null;
                 }
 
@@ -1184,7 +1185,6 @@ final class CertStatusExtension {
             }
 
             // Clear the pinned CertificateEntry from the context
-            shc.currentCertEntry = null;
             return producedData;
         }
     }

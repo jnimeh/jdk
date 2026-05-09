@@ -44,6 +44,18 @@ import java.util.Objects;
 
 import static sun.security.x509.PKIXExtensions.*;
 
+/**
+ * Supporting class used for acting like a fake certificate transparency
+ * log.  The job of the {@code MockCtLogEntity} is to simply be a generator
+ * of signed certificate timestamps as either X509 SCTs for inclusion in
+ * server hello/certificate messages/OCSP responses, or pre-certificate SCTs
+ * to be embedded in certificates.  There is no real logging that takes
+ * place.
+ * While RFC 6962 has strict limits on the key types allowed, the
+ * {@code MockCTLogEntity} class will allow other signature-capable key types
+ * in order to support fuzzing, future algorithm support or future RFC
+ * 9162 SCTs.
+ */
 public class MockCtLogEntity {
 
     private record SctSignerInfo(String jceSignAlg, int tlsSigSchemeId) { }
@@ -59,17 +71,49 @@ public class MockCtLogEntity {
 
     private static final SecureRandom RAND = new SecureRandom();
 
+    /**
+     * Create a {@code MockCtLogEntity} in a default configuration that
+     * uses the P-256 curve and a randomly generated log ID.
+     *
+     * @throws GeneralSecurityException if there are problems generating
+     * the log key pair.
+     * @throws IOException if there are issues obtaining signature info
+     * based on the key type (e.g. determining the curve type from an EC key)
+     */
     public MockCtLogEntity() throws GeneralSecurityException, IOException {
         this("EC:secp256r1");
     }
 
+    /**
+     * Create a {@code MockCtLogEntity} from a pre-generated log ID and
+     * {@link KeyPair}.
+     *
+     * @param id the log ID bytes
+     * @param signingKp the signing key pair
+     * @throws InvalidKeyException if the key algorithm in {@code signingKp}
+     * is not suitable for digital signatures (e.g. X25519)
+     * @throws IOException if there are issues obtaining signature info
+     * based on the key type (e.g. determining the curve type from an EC key)
+     */
     public MockCtLogEntity(byte[] id, KeyPair signingKp)
-            throws GeneralSecurityException, IOException {
-        logId = Objects.requireNonNull(id, "Illegal null log ID");
+            throws InvalidKeyException, IOException {
+        logId = Objects.requireNonNull(id, "Illegal null log ID").clone();
         keys = Objects.requireNonNull(signingKp, "Illegal null key pair");
         sigInfo = getSignerInfo(keys);
     }
 
+    /**
+     * Create a {@code MockCtLogEntity} that will have a randomly-generated
+     * log ID and a key pair of the specified type.
+     *
+     * @param keyspec the key specification, see {@link #getKpg(String)} for
+     *                details on the string format for key specifications.
+     * @throws GeneralSecurityException if there are issues obtaining
+     * signature info based on the key type (e.g. determining the curve type
+     * from an EC key)
+     * @throws IOException if there are issues obtaining signature info
+     * based on the key type (e.g. determining the curve type from an EC key)
+     */
     public MockCtLogEntity(String keyspec)
             throws GeneralSecurityException, IOException {
         // Generate a random logID
@@ -79,28 +123,69 @@ public class MockCtLogEntity {
         sigInfo = getSignerInfo(keys);
     }
 
+    /**
+     * Obtain the log ID from this {@code MockCtLogEntity}
+     *
+     * @return the log ID
+     */
     public byte[] getLogId() {
         return logId.clone();
     }
 
+    /**
+     * Obtain the {@link PublicKey} from this {@code MockCtLogEntity}
+     *
+     * @return the log's public key
+     */
     public PublicKey getLogPubkey() {
         return keys.getPublic();
     }
 
-    public SignedCertificateTimestamp getX509Sct(X509Certificate cert)
-            throws IOException, GeneralSecurityException {
-        // Set the signing time (whatever time it is right now)
-        Instant sctTimestamp = Instant.now();
-        return createSct(TYPE_X509SCT, sctTimestamp, cert.getEncoded());
+    /**
+     * Obtain the {@link PrivateKey} from this {@code MockCtLogEntity}
+     *
+     * @return the log's private key
+     */
+    public PrivateKey getLogPrvkey() {
+        return keys.getPrivate();
     }
 
+    /**
+     * Generate a version 1 X509 signed certificate timestamp.
+     *
+     * @param cert the certificate to be used as input to the SCT
+     * @return a version 1 SCT designed to be used with {@code cert}
+     * @throws IOException if any encoding or signing errors occur.
+     */
+    public SignedCertificateTimestamp getX509Sct(X509Certificate cert)
+            throws IOException {
+        try {
+            // Set the signing time (whatever time it is right now)
+            Instant sctTimestamp = Instant.now();
+            byte[] certDer = cert.getEncoded();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            baos.write(certDer.length >> 16);
+            baos.write(certDer.length >> 8);
+            baos.write(certDer.length);
+            baos.write(certDer);
+            return createSct(TYPE_X509SCT, sctTimestamp, baos.toByteArray());
+        } catch (GeneralSecurityException gse) {
+            throw new IOException(gse);
+        }
+    }
+
+    /**
+     * Generate a version 1 PreCert signed certificate timestamp.
+     *
+     * @param certIssuerKey the {@link PublicKey} of the CA that issued the
+     *                      subject certificate for which the SCT is made.
+     * @return a version 1 SCT designed to be used with {@code cert}
+     * @throws IOException if any encoding or signing errors occur
+     */
     public SignedCertificateTimestamp getPreCertSct(PublicKey certIssuerKey,
             byte[] tbsCertDer) throws IOException {
         // First, prep the pre-cert in order to make the signed_entry
         try (var baos = new ByteArrayOutputStream()) {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            baos.write(md.digest(certIssuerKey.getEncoded()));
-
             // Create the tbs_certificate portion of the pre-cert.  Since
             // we don't know whether we're getting a Pre-certificate with a
             // poison extension or we're reconstructing it from a final issued
@@ -129,15 +214,38 @@ public class MockCtLogEntity {
             }
 
             tbsCertOutStream.write(DerValue.tag_Sequence, tbsItems);
-            baos.write(tbsCertOutStream.toByteArray());
+            byte[] filtTbsCertDer = tbsCertOutStream.toByteArray();
 
-            Instant sctTimestamp = Instant.now();
-            return createSct(TYPE_PRECERTSCT, sctTimestamp, baos.toByteArray());
+            // Now write the PreCert structure
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            baos.write(md.digest(certIssuerKey.getEncoded()));
+            baos.write(filtTbsCertDer.length >> 16);
+            baos.write(filtTbsCertDer.length >> 8);
+            baos.write(filtTbsCertDer.length);
+            baos.write(filtTbsCertDer);
+
+            return createSct(TYPE_PRECERTSCT, Instant.now(),
+                    baos.toByteArray());
         } catch (GeneralSecurityException gse) {
-            throw new IOException("Failed to create public key hash", gse);
+            throw new IOException("Unable to create issuer key digest", gse);
         }
     }
 
+    /**
+     * Go through the extensions section of a TBSCertificate and filter out
+     * the extensions such that the resulting TBSCertificate is suitable
+     * for use in PreCert SCT generation/validation.
+     *
+     * @param a3dv the {@link DerValue} holding the sequence of extensions
+     *             for this TBSCertificate
+     * @param oidsToFilter a {@link List} of zero or more
+     *                     {@link ObjectIdentifier} values to search for and
+     *                     filter.
+     * @return a {@link DerOutputStream} containing the data for a new
+     * extensions block of all extensions from the input in {@code a3dv}, in
+     * order, less the filtered extensions specified in {@code oidsToFilter}
+     * @throws IOException if any processing errors occur
+     */
     private static DerOutputStream filterExtensions(DerValue a3dv,
             List<ObjectIdentifier> oidsToFilter) throws IOException {
         DerOutputStream extsOuterSeq = new DerOutputStream(a3dv.length());
@@ -159,6 +267,19 @@ public class MockCtLogEntity {
         return extsOuterSeq;
     }
 
+    /**
+     * Create an X509 or PreCert signed certificate timestamp (SCT).
+     *
+     * @param type the type of SCT, either {@link #TYPE_X509SCT} or
+     *             {@link #TYPE_PRECERTSCT}
+     * @param sigTime the signing time
+     * @param sigEntData the data to be used in the signature entry, either
+     *                   a complete encoded X.509 certifiate or a PreCertificate
+     * @return the signed certificate timestamp
+     * @throws IOException if any encoding exceptions occur
+     * @throws GeneralSecurityException if any unrecoverable errors occur during
+     * the signature operation
+     */
     private SignedCertificateTimestamp createSct(int type, Instant sigTime,
             byte[] sigEntData) throws IOException, GeneralSecurityException {
         try (var baos = new ByteArrayOutputStream();
@@ -190,7 +311,7 @@ public class MockCtLogEntity {
      * } DigitallySigned;
      * </pre>
      *
-     * @param type the LogEntryType for this signature
+     * @param entryType the LogEntryType for this signature
      * @param sigTime the signing time
      * @param signedEntry the signed entry itself (pre-cert vs. ASN.1 cert)
      *
@@ -200,7 +321,7 @@ public class MockCtLogEntity {
      * @throws GeneralSecurityException if there are issues instantiating the
      *         {@code Signature} object or an invalid key pair is provided.
      */
-    private byte[] makeDigitalSignature(int type, Instant sigTime,
+    private byte[] makeDigitalSignature(int entryType, Instant sigTime,
             byte[] signedEntry) throws IOException, GeneralSecurityException {
         try (var baos = new ByteArrayOutputStream();
              var dos = new DataOutputStream(baos)) {
@@ -211,16 +332,18 @@ public class MockCtLogEntity {
             dos.writeByte(VERSION);
             dos.writeByte(CT_SIG_TYPE);
             dos.writeLong(sigTime.toEpochMilli());
-            dos.writeShort(type);
+            dos.writeShort(entryType);
             dos.write(signedEntry);
             dos.writeShort(0);                  // Empty CtExtensions
             signer.update(baos.toByteArray());
+            byte[] sigData = signer.sign();
 
             // Write the outer DigitallySigned structure (alg id and sig)
             try (var dsBaos = new ByteArrayOutputStream();
                  var dsDos = new DataOutputStream(dsBaos)) {
                 dsDos.writeShort(sigInfo.tlsSigSchemeId);
-                dsDos.write(signer.sign());
+                dsDos.writeShort(sigData.length);
+                dsDos.write(sigData);
                 return dsBaos.toByteArray();
             }
         }
@@ -236,9 +359,8 @@ public class MockCtLogEntity {
      * Return an initialize {@code KeyPairGenerator} from a key specification.
      * The specification takes the form of [ALG]:[PARAM]. Where alg can be
      * any signature-capable type from the Java Standard Algorithm names table
-     * for KeyPairGenerator (except for DSA).  PARAM is only needed when
-     * ALG doesn't imply the parameters and a missing value will have a default
-     * assigned for it:
+     * for KeyPairGenerator.  PARAM is only needed when ALG doesn't imply the
+     * parameters and a missing value will have a default assigned for it:
      * <LI>EdDSA: takes a string value {@code Ed25519} or {@code Ed448}.
      *         Defaults to {@code Ed25519}.
      * <LI>ML-DSA: takes {@code ML-DSA-44}, {@code ML-DSA-65} or
@@ -246,6 +368,7 @@ public class MockCtLogEntity {
      * <LI>EC: takes a curve name (e.g. {@code secp521r1}).  Defaults to
      *         {@code secp256r1}.
      * <LI>RSA: takes a modulus bit length, defaults to 2048.
+     * <LI>DSA: takes a prime bit length, defaults to 2048.
      *
      * @param keyspec the key specification as described above.
      *
@@ -292,6 +415,11 @@ public class MockCtLogEntity {
                         2048 : Integer.parseInt(kpgComps[1]);
                 kpg.initialize(new RSAKeyGenParameterSpec(keySize,
                         RSAKeyGenParameterSpec.F4));
+            }
+            case "DSA" -> {
+                int primeLen = (kpgComps.length < 2 || kpgComps[1] == null) ?
+                        2048 : Integer.parseInt(kpgComps[1]);
+                kpg.initialize(primeLen);
             }
             default -> throw new IllegalArgumentException("\"" + kpgComps[0] +
                     "\" is disallowed or invalid");
@@ -355,34 +483,38 @@ public class MockCtLogEntity {
         };
     }
 
+    /**
+     * Obtain the EC named curve from an EC SubjectPublicKeyInfo structure.
+     *
+     * @param pubKey the {@link PublicKey} to be evaluated
+     * @return the {@link KnownOIDs} entry for the EC curve
+     * @throws IOException if any decoding errors occur
+     * @throws InvalidKeyException if the provided public key is not an elliptic
+     * curve public key.
+     */
     private static KnownOIDs getEcCurveByPubkey(PublicKey pubKey)
-            throws IOException {
+            throws IOException, InvalidKeyException {
         if (pubKey instanceof ECPublicKey ecKey) {
             DerInputStream dis = new DerInputStream(ecKey.getEncoded());
-            DerValue[] topItems = dis.getSequence(2);   // AlgID and key bitstring
-            for (DerValue it : topItems) {
-                System.out.println("DV type: " + it.tag);
-            }
-            DerValue[] algIdItems = topItems[0].data().getSequence(2);
-            // The first item must be an OID of type id-ecPublicKey
-            // (1.2.840.10045.2.1).  The parameters field can take a few different
-            // forms, but we're only going to support the named curve format (an
-            // OID).  Any other non-OID parameter type will throw IOException.
-            if (algIdItems.length == 2) {
-                ObjectIdentifier keyAlgOid =
-                        Objects.requireNonNull(algIdItems[0]).getOID();
+            DerValue[] topItems = dis.getSequence(2);
+            // The first of the two items is the algorithm ID.  We're expecting
+            // it to be a Sequence of two OIDs.
+            if (topItems[0].tag == DerValue.tag_Sequence) {
+                DerInputStream algIdStr = topItems[0].data();
+                ObjectIdentifier keyAlgOid = algIdStr.getOID();
+                ObjectIdentifier curveOid = algIdStr.getOID();
+                // The first item must be an OID of type id-ecPublicKey
+                // (1.2.840.10045.2.1).  The parameters field can take a few different
+                // forms, but we're only going to support the named curve format (an
+                // OID).  Any other non-OID parameter type will throw IOException.
                 if (KnownOIDs.findMatch(keyAlgOid.toString()) == KnownOIDs.EC) {
-                    ObjectIdentifier curveOid =
-                            Objects.requireNonNull(algIdItems[1]).getOID();
                     return KnownOIDs.findMatch(curveOid.toString());
                 } else {
-                    throw new IOException("Unexpected key algorithm OID: " +
-                            keyAlgOid);
+                    throw new InvalidKeyException("Unexpected key algorithm " +
+                            "OID: " + keyAlgOid);
                 }
             } else {
-                throw new IOException("Incorrect number of items in" +
-                        "AlgorithmIdentifier: expected 2, received " +
-                        algIdItems.length);
+                throw new IOException("Missing AlgorithmIdentifier Sequence");
             }
         } else {
             throw new IOException("Expected ECPublicKey, got " +

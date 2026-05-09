@@ -51,7 +51,10 @@ public interface CertTransElement {
 
     /**
      * Obtain the version of the certificate transparency protocol to which
-     * this {@code CertTransElement} belongs.
+     * this {@code CertTransElement} belongs.  Note that this method returns
+     * the logical version number, not its encoded numeric value (i.e. a
+     * version 1 signed certificate timestamp will return 1, not 0 as it is
+     * encoded).
      *
      * @return an integer indicating the version of certificate transparency
      * for this object.

@@ -73,6 +73,7 @@ $(eval $(call SetupJavaCompilation, BUILD_TEST_LIB_JAR, \
         --add-exports java.base/sun.security.provider.certpath=ALL-UNNAMED \
         --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED \
         --add-exports java.base/sun.security.x509=ALL-UNNAMED \
+        --add-exports java.base/sun.security.ssl=ALL-UNNAMED \
         --enable-preview, \
 ))
 

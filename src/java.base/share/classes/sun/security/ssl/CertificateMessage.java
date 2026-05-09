@@ -52,7 +52,9 @@ import sun.security.ssl.X509Authentication.X509Possession;
 import sun.security.x509.SerialNumber;
 
 import static sun.security.ssl.ClientAuthType.CLIENT_AUTH_REQUIRED;
+import static sun.security.ssl.SSLExtension.CT_SIGNED_CERT_TIMESTAMP;
 import static sun.security.ssl.SSLExtension.SH_SIGNED_CERT_TIMESTAMP;
+import static sun.security.ssl.SignedCertTimestampExtension.T13SCTMapSpec;
 
 /**
  * Pack of the CertificateMessage handshake message.
@@ -717,6 +719,59 @@ final class CertificateMessage {
             }
         }
 
+        private static void addSctsToSession(ClientHandshakeContext chc,
+                X509Certificate[] certs) throws IOException {
+            // In its current implementation, we only expect to see signed cert
+            // timestamps in TLS certificates.  We'll pull the current Set of
+            // SCTs from the session SCT cache.
+            Set<CertTransElement> leafScts = chc.handshakeSession.certTransCache.
+                    get(certs[0]);
+
+            // Pull any embedded pre-cert SCTs from the TLS cert
+            List<SignedCertificateTimestamp> newScts =
+                    SignedCertTimestampV1.getSCTListFromCert(certs[0]);
+
+            // Second, pull any SCTs from TLS extensions.  They will be attached
+            // to the handshake context differently depending on which version
+            // of TLS is used (<= 1.2 vs. >= 1.3)
+            var spec = chc.handshakeExtensions.get(SH_SIGNED_CERT_TIMESTAMP);
+            if (spec instanceof SignedCertTimestampSpec sctSpec &&
+                    !sctSpec.sigCertTsList.isEmpty()) {
+                newScts.addAll(sctSpec.sigCertTsList);
+            }
+
+            // Finally, walk through any OCSP responses.  Any responses for the
+            // TLS certificate should be checked for timestamps and added to our
+            // List.
+            // In order to parse the OCSP response properly, we need a CertId
+            // and therefore need the issuer to be available.
+            if (certs.length > 1 && certs[1] != null) {
+                CertId cid = new CertId(certs[1],
+                        new SerialNumber(certs[0].getSerialNumber()));
+                for (byte[] respDer : chc.handshakeSession.getStatusResponses()) {
+                    OCSPResponse oResp = new OCSPResponse(respDer);
+                    OCSPResponse.SingleResponse sr = oResp.getSingleResponse(cid);
+                    if (sr != null) {
+                        List<SignedCertificateTimestamp> oScts =
+                                SignedCertTimestampV1.getSCTListFromOCSP(sr);
+                        newScts.addAll(oScts);
+                    }
+                }
+            } else {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
+                    SSLLogger.fine("Unable to determine CertId for leaf-node " +
+                            "certificate OCSP response matching");
+                }
+            }
+
+            if (leafScts == null) {
+                leafScts = new HashSet<>(newScts);
+                chc.handshakeSession.certTransCache.put(certs[0], leafScts);
+            } else {
+                leafScts.addAll(newScts);
+            }
+        }
     }
 
     /**
@@ -1198,8 +1253,10 @@ final class CertificateMessage {
             SSLExtension[] enabledExtensions =
                     chc.sslConfig.getEnabledExtensions(SSLHandshake.CERTIFICATE);
             for (CertificateEntry certEnt : certificateMessage.certEntries) {
+                chc.currentCertEntry = certEnt;
                 certEnt.extensions.consumeOnLoad(chc, enabledExtensions);
             }
+            chc.currentCertEntry = null;    // Clear the cert entry reference
 
             // check server certificate entries
             X509Certificate[] srvCerts =
@@ -1340,6 +1397,10 @@ final class CertificateMessage {
                 // Once the server certificate chain has been validated, set
                 // the certificate chain in the TLS session.
                 chc.handshakeSession.setPeerCertificates(certs);
+
+                // Now that we have validated the certificate chain, let's
+                // attach signed cert timestamps to the SSLSession.
+                addSctsToSession(chc, certs, certEntries);
             } catch (CertificateException ce) {
                 throw chc.conContext.fatal(getCertificateAlert(chc, ce), ce);
             }
@@ -1347,6 +1408,47 @@ final class CertificateMessage {
             return certs;
         }
 
+        private static void addSctsToSession(ClientHandshakeContext chc,
+                X509Certificate[] certs, List<CertificateEntry> certEntries)
+                throws IOException {
+            // First, let's grab all the SCTs we've parsed in the extension
+            // consumer with their linkage to each CertificateEntry
+            T13SCTMapSpec sctSpec = (T13SCTMapSpec)chc.handshakeExtensions.get(
+                    CT_SIGNED_CERT_TIMESTAMP);
+
+            // certs and certEntries are parallel collections
+            for (int i = 0; i < certs.length; i++) {
+                CertificateEntry ent = certEntries.get(i);
+
+                // First, begin by pulling any embedded SCTs out of
+                // X509 certificates
+                List<SignedCertificateTimestamp> newScts =
+                        SignedCertTimestampV1.getSCTListFromCert(certs[i]);
+
+                // Next, let's add any SCTs that we parsed during the
+                // extension consumer.  It is possible that there may not
+                // be a spec for this if the extension was not present in
+                // the Certificate message.
+                newScts.addAll(Optional.ofNullable(sctSpec).map(m ->
+                        m.sctMap.getOrDefault(ent, Collections.emptyList())).
+                        orElse(Collections.emptyList()));
+
+                // TODO: OCSP RESPONSES!
+                // extData = ent.extensions.get(SSLExtension.CT_STATUS_REQUEST)
+
+                // Finally let's attach these to the SCT cache in the
+                // ExtendedSSLSession: Grab any existing entries for this
+                // X509Certificate and add any new ones we found.
+                Set<CertTransElement> sessScts =
+                        chc.handshakeSession.certTransCache.get(certs[i]);
+                if (sessScts != null) {
+                    sessScts.addAll(newScts);
+                } else {
+                    chc.handshakeSession.certTransCache.put(certs[i],
+                            new HashSet<>(newScts));
+                }
+            }
+        }
     }
 
     /**
@@ -1398,58 +1500,5 @@ final class CertificateMessage {
         }
 
         return alert;
-    }
-
-    private static void addSctsToSession(ClientHandshakeContext chc,
-            X509Certificate[] certs) throws IOException {
-        // In its current implementation, we only expect to see signed cert
-        // timestamps in TLS certificates.  We'll pull the current Set of
-        // SCTs from the session SCT cache.
-        Set<CertTransElement> leafScts = chc.handshakeSession.certTransCache.
-                get(certs[0]);
-
-        // Pull any embedded pre-cert SCTs from the TLS cert
-        List<SignedCertificateTimestamp> newScts =
-                SignedCertTimestampV1.getSCTListFromCert(certs[0]);
-
-        // Second, pull any SCTs from TLS extensions.  They will be attached
-        // to the handshake context differently depending on which version
-        // of TLS is used (<= 1.2 vs. >= 1.3)
-        if (chc.negotiatedProtocol.useTLS13PlusSpec()) {
-            // TODO: TLS 1.3 stuff
-        } else {
-            var spec = chc.handshakeExtensions.get(SH_SIGNED_CERT_TIMESTAMP);
-            if (spec instanceof SignedCertTimestampSpec sctSpec &&
-                    !sctSpec.sigCertTsList.isEmpty()) {
-                newScts.addAll(sctSpec.sigCertTsList);
-            }
-        }
-
-        // Finally, walk through any OCSP responses.  Any responses for the
-        // TLS certificate should be checked for timestamps and added to our
-        // List.
-        // In order to parse the OCSP response properly, we need a CertId
-        // and therefore need the issuer to be available.
-        if (certs.length > 1 && certs[1] != null) {
-            CertId cid = new CertId(certs[1],
-                    new SerialNumber(certs[0].getSerialNumber()));
-            for (byte[] respDer : chc.handshakeSession.getStatusResponses()) {
-                OCSPResponse oResp = new OCSPResponse(respDer);
-                OCSPResponse.SingleResponse sr = oResp.getSingleResponse(cid);
-                if (sr != null) {
-                    List<SignedCertificateTimestamp> oScts =
-                            SignedCertTimestampV1.getSCTListFromOCSP(sr);
-                    newScts.addAll(oScts);
-                }
-            }
-        }
-
-        if (leafScts == null) {
-            leafScts = new HashSet<>();
-            leafScts.addAll(newScts);
-            chc.handshakeSession.certTransCache.put(certs[0], leafScts);
-        } else {
-            leafScts.addAll(newScts);
-        }
     }
 }

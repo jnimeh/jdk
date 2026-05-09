@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -30,6 +30,7 @@ import java.util.*;
 import java.security.*;
 import java.time.temporal.ChronoUnit;
 import java.time.Instant;
+import javax.net.ssl.SignedCertificateTimestamp;
 import javax.security.auth.x500.X500Principal;
 import java.math.BigInteger;
 
@@ -37,34 +38,18 @@ import sun.security.util.DerOutputStream;
 import sun.security.util.DerValue;
 import sun.security.util.ObjectIdentifier;
 import sun.security.util.SignatureUtil;
-import sun.security.x509.AccessDescription;
-import sun.security.x509.AlgorithmId;
-import sun.security.x509.AuthorityInfoAccessExtension;
-import sun.security.x509.AuthorityKeyIdentifierExtension;
-import sun.security.x509.IPAddressName;
-import sun.security.x509.SubjectKeyIdentifierExtension;
-import sun.security.x509.BasicConstraintsExtension;
-import sun.security.x509.CertificateSerialNumber;
-import sun.security.x509.ExtendedKeyUsageExtension;
-import sun.security.x509.DNSName;
-import sun.security.x509.GeneralName;
-import sun.security.x509.GeneralNames;
-import sun.security.x509.KeyUsageExtension;
-import sun.security.x509.SubjectAlternativeNameExtension;
-import sun.security.x509.URIName;
-import sun.security.x509.KeyIdentifier;
-import sun.security.x509.X500Name;
+import sun.security.x509.*;
 
 
 /**
  * Helper class that builds and signs X.509 certificates.
- *
+ * <p>
  * A CertificateBuilder is created with a default constructor, and then
  * uses additional public methods to set the public key, desired validity
  * dates, serial number and extensions.  It is expected that the caller will
  * have generated the necessary key pairs prior to using a CertificateBuilder
  * to generate certificates.
- *
+ * <p>
  * The following methods are mandatory before calling build():
  * <UL>
  * <LI>{@link #setSubjectName(java.lang.String)}
@@ -78,12 +63,12 @@ import sun.security.x509.X500Name;
  * Additionally, the caller can either provide a {@link List} of
  * {@link Extension} objects, or use the helper classes to add specific
  * extension types.
- *
+ * <p>
  * When all required and desired parameters are set, the
  * {@link #build(java.security.cert.X509Certificate, java.security.PrivateKey,
  * java.lang.String)} method can be used to create the {@link X509Certificate}
  * object.
- *
+ * <p>
  * Multiple certificates may be cut from the same settings using subsequent
  * calls to the build method.  Settings may be cleared using the
  * {@link #reset()} method.
@@ -99,6 +84,13 @@ public class CertificateBuilder {
     private final Map<String, Extension> extensions = new HashMap<>();
     private byte[] tbsCertBytes;
     private byte[] signatureBytes;
+    private List<MockCtLogEntity> logEntities = null;
+    private boolean preTbsCertSubmitted = false;
+
+    // Needed for TBSCertificate coherency with SCT generation
+    private Date encodingNotBefore;
+    private Date encodingNotAfter;
+    private CertificateSerialNumber encodingSerialNumber;
 
     public enum KeyUsage {
         DIGITAL_SIGNATURE,
@@ -109,7 +101,7 @@ public class CertificateBuilder {
         KEY_CERT_SIGN,
         CRL_SIGN,
         ENCIPHER_ONLY,
-        DECIPHER_ONLY;
+        DECIPHER_ONLY
     }
 
     /**
@@ -120,12 +112,13 @@ public class CertificateBuilder {
      * @param publicKey the entity's public key
      * @param caKey public key of certificate signer
      * @param keyUsages list of key uses
-     * @return
-     * @throws CertificateException
-     * @throws IOException
+     * @return a CertificateBuilder configured with the provided parameters
+     * @throws CertificateException if an error occurs when obtaining the
+     *         underlying CertificateFactory
+     * @throws IOException if any extension encoding errors occur
      */
     public static CertificateBuilder newCertificateBuilder(String subjectName,
-                           PublicKey publicKey, PublicKey caKey, KeyUsage... keyUsages)
+            PublicKey publicKey, PublicKey caKey, KeyUsage... keyUsages)
             throws CertificateException, IOException {
         SecureRandom random = new SecureRandom();
 
@@ -149,8 +142,8 @@ public class CertificateBuilder {
     /**
      * Create a Subject Alternative Name extension for the given DNS name
      * @param critical Sets the extension to critical or non-critical
-     * @param dnsName DNS name to use in the extension
-     * @throws IOException
+     * @param dnsNames one or more DNS names to use in the extension
+     * @throws IOException if any encoding errors occur
      */
     public static SubjectAlternativeNameExtension createDNSSubjectAltNameExt(
             boolean critical, String... dnsNames) throws IOException {
@@ -164,8 +157,8 @@ public class CertificateBuilder {
     /**
      * Create a Subject Alternative Name extension for the given IP address
      * @param critical Sets the extension to critical or non-critical
-     * @param ipAddresses IP addresses to use in the extension
-     * @throws IOException
+     * @param ipAddresses one or more IP addresses to use in the extension
+     * @throws IOException if any encoding errors occur
      */
     public static SubjectAlternativeNameExtension createIPSubjectAltNameExt(
             boolean critical, String... ipAddresses) throws IOException {
@@ -176,7 +169,8 @@ public class CertificateBuilder {
         return new SubjectAlternativeNameExtension(critical, gns);
     }
 
-    public static void printCertificate(X509Certificate certificate, PrintStream ps) {
+    public static void printCertificate(X509Certificate certificate,
+            PrintStream ps) {
         try {
             Base64.Encoder encoder = Base64.getEncoder();
             ps.println("-----BEGIN CERTIFICATE-----");
@@ -389,16 +383,12 @@ public class CertificateBuilder {
                     adObj = AccessDescription.Ad_OCSP_Id;
                     uriLoc = tokens[0];
                 } else {
-                    switch (tokens[0].toUpperCase()) {
-                        case "OCSP":
-                            adObj = AccessDescription.Ad_OCSP_Id;
-                            break;
-                        case "CAISSUER":
-                            adObj = AccessDescription.Ad_CAISSUERS_Id;
-                            break;
-                        default:
-                            throw new IOException("Unknown AD: " + tokens[0]);
-                    }
+                    adObj = switch (tokens[0].toUpperCase()) {
+                        case "OCSP" -> AccessDescription.Ad_OCSP_Id;
+                        case "CAISSUER" -> AccessDescription.Ad_CAISSUERS_Id;
+                        default -> throw new IOException("Unknown AD: " +
+                                tokens[0]);
+                    };
                     uriLoc = tokens[1];
                 }
                 acDescList.add(new AccessDescription(adObj,
@@ -495,6 +485,16 @@ public class CertificateBuilder {
         return this;
     }
 
+    public CertificateBuilder addSignedCertTimestampV1Ext(
+            Collection<MockCtLogEntity> ctLogs) {
+        // This extension is actually an exception in that the actual extension
+        // object will be created during TBSCertificate build time, since the
+        // SCTs cannot be created until all other extensions have been specified
+        // and placed into an encoded TBSCertificate in pre-certificate form.
+        logEntities = new ArrayList<>(ctLogs);
+        return this;
+    }
+
     /**
      * Clear all settings and return the {@code CertificateBuilder} to
      * its default state.
@@ -578,6 +578,21 @@ public class CertificateBuilder {
             PrivateKey issuerKey, String algName)
             throws CertificateException, IOException {
 
+        // For this build, we will set the fields that are allowed to be
+        // unset with default/random values as necessary.  These will only
+        // be valid for this encoding, but are tied to different fields
+        // in the object so the same builder can be used to build multiple
+        // certificates according to these default rules (e.g. build
+        // multiple certificates with random serial numbers, dates based on
+        // the current time, etc.)
+        Instant now = Instant.now();
+        encodingNotBefore = (notBefore != null) ? notBefore : Date.from(now);
+        encodingNotAfter = (notAfter != null) ? notAfter :
+                Date.from(now.plus(90, ChronoUnit.DAYS));
+        encodingSerialNumber = (serialNumber != null) ?
+                new CertificateSerialNumber(serialNumber) :
+                CertificateSerialNumber.newRandom64bit(new SecureRandom());
+
         AlgorithmId signAlg;
         DerOutputStream outerSeq = new DerOutputStream();
         DerOutputStream topLevelItems = new DerOutputStream();
@@ -617,7 +632,7 @@ public class CertificateBuilder {
      *      extensions      [3]  EXPLICIT Extensions OPTIONAL
      *                        -- If present, version MUST be v3
      *      }
-     *
+     * </PRE>
      * @param issuerCert The certificate of the issuing authority, or
      * {@code null} if the resulting certificate is self-signed.
      * @param signAlg The signature algorithm object
@@ -640,10 +655,7 @@ public class CertificateBuilder {
         }
 
         // Serial Number
-        CertificateSerialNumber sn = (serialNumber != null) ?
-            new CertificateSerialNumber(serialNumber) :
-            CertificateSerialNumber.newRandom64bit(new SecureRandom());
-        sn.encode(tbsCertItems);
+        encodingSerialNumber.encode(tbsCertItems);
 
         // Algorithm ID
         signAlg.encode(tbsCertItems);
@@ -659,12 +671,8 @@ public class CertificateBuilder {
 
         // Validity period (set as UTCTime)
         DerOutputStream valSeq = new DerOutputStream();
-        Instant now = Instant.now();
-        Date startDate = (notBefore != null) ? notBefore : Date.from(now);
-        valSeq.putUTCTime(startDate);
-        Date endDate = (notAfter != null) ? notAfter :
-            Date.from(now.plus(90, ChronoUnit.DAYS));
-        valSeq.putUTCTime(endDate);
+        valSeq.putUTCTime(encodingNotBefore);
+        valSeq.putUTCTime(encodingNotAfter);
         tbsCertItems.write(DerValue.tag_Sequence, valSeq);
 
         // Subject Name
@@ -678,7 +686,34 @@ public class CertificateBuilder {
 
         // Wrap it all up in a SEQUENCE and return the bytes
         tbsCertSeq.write(DerValue.tag_Sequence, tbsCertItems);
-        return tbsCertSeq.toByteArray();
+        byte[] tbsCertDer = tbsCertSeq.toByteArray();
+
+        if (!preTbsCertSubmitted && (logEntities != null &&
+                !logEntities.isEmpty())) {
+            List<SignedCertificateTimestamp> preCertScts = new ArrayList<>();
+            // Take the preliminary TBSCertificate bytes and use that as input
+            // for each of the log entities.  Each one will return a pre-cert
+            // SCT which will be included in the extensions and re-encoded.
+            for (var log : logEntities) {
+                preCertScts.add(log.getPreCertSct(issuerCert.getPublicKey(),
+                        tbsCertDer));
+            }
+            addExtension(new SignedCertificateTimestampListExtension.
+                    PreCertSCTListExt(false, preCertScts));
+            // We're not submitting a real pre-certificate since we're working
+            // with MockCtLogEntities, so we're just giving a TBSCertificate
+            // with no poison extension and no SCT extension.
+            preTbsCertSubmitted = true;    // The precert has been submitted
+
+            // call this method again, this time with the updated extension
+            // list and continue from there.
+            return encodeTbsCert(issuerCert, signAlg);
+        } else {
+            // Reset the submitted flag to false so the CertificateBuilder
+            // can be reused, if needed.
+            preTbsCertSubmitted = false;
+            return tbsCertDer;
+        }
     }
 
     /**

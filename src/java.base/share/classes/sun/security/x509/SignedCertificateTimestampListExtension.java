@@ -25,6 +25,7 @@
 
 package sun.security.x509;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,7 +64,6 @@ public abstract class SignedCertificateTimestampListExtension
     // Private data member
     protected final List<SignedCertificateTimestamp> sctList =
             new ArrayList<>();
-    protected final byte[] serializedSctList;
 
     /**
      * Create a SignedCertificateTimestampListExtension with the passed
@@ -71,11 +71,8 @@ public abstract class SignedCertificateTimestampListExtension
      * first two bytes are the sct_list vector length.
      *
      * @param octetString the octet string identifying the sct_list.
-     *
-     * @throws IOException if any SCT parsing errors occur.
      */
-    protected SignedCertificateTimestampListExtension(byte[] octetString)
-            throws IOException {
+    protected SignedCertificateTimestampListExtension(byte[] octetString) {
         this(Boolean.FALSE, octetString);
     }
 
@@ -88,13 +85,9 @@ public abstract class SignedCertificateTimestampListExtension
      * @param critical the criticality bit for the extension
      * @param value the octet string as an Object (which should be byte[]
      *      actually).
-     *
-     * @throws IOException if any SCT parsing errors occur.
-     * @throws ClassCastException if the underlying type of the Object is
-     *      not byte[].
      */
     protected SignedCertificateTimestampListExtension(Boolean critical,
-            Object value) throws IOException {
+            Object value) {
         this(critical, (byte[])value);
     }
 
@@ -105,15 +98,51 @@ public abstract class SignedCertificateTimestampListExtension
      *
      * @param critical the criticality bit for the extension
      * @param octetString the octet string identifying the sct_list.
-     *
-     * @throws IOException if any SCT parsing errors occur.
      */
     protected SignedCertificateTimestampListExtension(Boolean critical,
-            byte[] octetString) throws IOException {
-        DerValue encapsOctStr = new DerValue(octetString);
-        serializedSctList = encapsOctStr.getDataBytes();
-        this.extensionValue = octetString.clone();
+            byte[] octetString) {
         this.critical = critical;
+        this.extensionValue = octetString.clone();
+        // Parsing of the extensionValue into the sctList collection is done
+        // from the child constructor.
+    }
+
+    protected SignedCertificateTimestampListExtension(boolean critical,
+            List<SignedCertificateTimestamp> scts, CertTransType type)
+            throws IOException {
+        this.critical = critical;
+        // Verify that all elements within the list are null-clean, version 1,
+        // and of the specified type.  While going through each SCT, we can
+        // also encode the extension value.
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            for (var sct : scts) {
+                if (sct.getVersion() == 1 && sct.getType() == type) {
+                    sctList.add(sct);
+                } else {
+                    throw new IllegalArgumentException("Found incorrect SCT " +
+                            "type: version = " + sct.getVersion() +
+                            ", type = " + sct.getType());
+                }
+
+                // Write each timestamp as a SerializedSCT
+                byte[] sctData = sct.getEncoded();
+                baos.write((byte)(sctData.length >>> 8));
+                baos.write((byte)sctData.length);
+                baos.write(sctData);
+            }
+
+            // Now write the SerializedSCT vector length followed by the data
+            // and wrap all of that inside an OCTET STRING for the extension
+            // value.
+            try (DerOutputStream vector = new DerOutputStream()) {
+                int len = baos.size();
+                vector.write((byte)(len >>> 8));
+                vector.write((byte)len);
+                baos.writeTo(vector);
+                this.extensionValue = DerValue.wrap(DerValue.tag_OctetString,
+                        vector).toByteArray();
+            }
+        }
     }
 
     /**
@@ -157,9 +186,16 @@ public abstract class SignedCertificateTimestampListExtension
         public PreCertSCTListExt(Boolean critical, byte[] octetString)
                 throws IOException {
             super(critical, octetString);
-            this.extensionId = PKIXExtensions.SignedCertificateTimestampList_Id;
+            extensionId = PKIXExtensions.SignedCertificateTimestampList_Id;
             sctList.addAll(SignedCertTimestampV1.getSCTs(
-                    CertTransType.PRECERT_SCT, serializedSctList));
+                    CertTransType.PRECERT_SCT,
+                    new DerValue(this.extensionValue).getDataBytes()));
+        }
+
+        public PreCertSCTListExt(boolean critical,
+                List<SignedCertificateTimestamp> scts) throws IOException {
+            super(critical, scts, CertTransType.PRECERT_SCT);
+            extensionId = PKIXExtensions.SignedCertificateTimestampList_Id;
         }
 
         @Override
@@ -182,10 +218,16 @@ public abstract class SignedCertificateTimestampListExtension
         public OCSPSCTListExt(Boolean critical, byte[] octetString)
                 throws IOException {
             super(critical, octetString);
-            this.extensionId =
-                    PKIXExtensions.SignedCertificateTimestampListOCSP_Id;
+            extensionId = PKIXExtensions.SignedCertificateTimestampListOCSP_Id;
             sctList.addAll(SignedCertTimestampV1.getSCTs(
-                    CertTransType.X509_SCT, serializedSctList));
+                    CertTransType.X509_SCT,
+                    new DerValue(this.extensionValue).getDataBytes()));
+        }
+
+        public OCSPSCTListExt(boolean critical,
+                List<SignedCertificateTimestamp> scts) throws IOException {
+            super(critical, scts, CertTransType.X509_SCT);
+            extensionId = PKIXExtensions.SignedCertificateTimestampListOCSP_Id;
         }
 
         @Override

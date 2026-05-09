@@ -1020,6 +1020,16 @@ final class SSLSessionImpl extends ExtendedSSLSession {
         }
     }
 
+    @Override
+    public Map<X509Certificate, Set<CertTransElement>> getCertTransElements() {
+        // Build a modifiable copy of the internal certificate transparency
+        // element map.
+        Map<X509Certificate, Set<CertTransElement>> retMap = new HashMap<>();
+        certTransCache.forEach((cert, sctSet) ->
+                retMap.put(cert, new HashSet<>(sctSet)));
+        return retMap;
+    }
+
     /**
      * Returns the identity of the peer which was established as part of
      * defining the session.

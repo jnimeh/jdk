@@ -27,17 +27,15 @@ package sun.security.ssl;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+
 import static sun.security.ssl.SSLExtension.CH_SIGNED_CERT_TIMESTAMP;
-import static sun.security.ssl.SSLExtension.CR_SIGNED_CERT_TIMESTAMP;
 import static sun.security.ssl.SSLExtension.CT_SIGNED_CERT_TIMESTAMP;
 import static sun.security.ssl.SSLExtension.SH_SIGNED_CERT_TIMESTAMP;
+import static sun.security.ssl.CertificateMessage.CertificateEntry;
 import sun.security.ssl.SSLExtension.ExtensionConsumer;
 import sun.security.ssl.SSLExtension.SSLExtensionSpec;
 import sun.security.ssl.SSLHandshake.HandshakeMessage;
-import sun.security.ssl.SignedCertTimestampV1.X509CertSctV1;
 
 import javax.net.ssl.CertTransType;
 import javax.net.ssl.SignedCertificateTimestamp;
@@ -146,6 +144,28 @@ final class SignedCertTimestampExtension {
         }
     }
 
+    /**
+     * An SSLExtensionSpec that allows us to track multiple instances
+     * of SignedCertificateTimestampList objects since there is the
+     * potential that they may exist in more than one CertificateEntry in
+     * the TLS 1.3 certificate message.  It is highly unlikely that anything
+     * other than the leaf-node certificate will have them, though.
+     */
+    static final class T13SCTMapSpec implements SSLExtensionSpec {
+        final Map<CertificateEntry, List<SignedCertificateTimestamp>> sctMap =
+                new HashMap<>();
+
+        void add(CertificateEntry cMsg,
+                List<SignedCertificateTimestamp> sctList) {
+            List<SignedCertificateTimestamp> curList = sctMap.get(cMsg);
+            if (curList != null) {
+                curList.addAll(sctList);
+            } else {
+                sctMap.put(cMsg, sctList);
+            }
+        }
+    }
+
     private static final
             class SignedCertTimestampStringizer implements SSLStringizer {
         @Override
@@ -179,7 +199,7 @@ final class SignedCertTimestampExtension {
 
         @Override
         public byte[] produce(ConnectionContext context,
-                HandshakeMessage message) throws IOException {
+                HandshakeMessage message) {
             // The producing happens in client side only.
             ClientHandshakeContext chc = (ClientHandshakeContext)context;
             if (!SSLConfiguration.enableClientCertTrans) {
@@ -266,7 +286,7 @@ final class SignedCertTimestampExtension {
 
         @Override
         public byte[] produce(ConnectionContext context,
-                HandshakeMessage message) throws IOException {
+                HandshakeMessage message) {
             // The producing happens in client side only.
             ServerHandshakeContext shc = (ServerHandshakeContext)context;
 
@@ -297,15 +317,15 @@ final class SignedCertTimestampExtension {
 
             // For right now, the server-side application of SCTs into
             // the ServerHello message is not complete.  So we'll
-            // return null for right now and not do CT.  Eventually extData
-            // will contain a serialized SignedCertificateTimestampList
-            byte[] extData = null;
+            // return null for right now and not do CT.  Eventually we
+            // will produce a serialized SignedCertificateTimestampList and
+            // assign it to "extData"
             if (SSLLogger.isOn() && SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
                 SSLLogger.finest("Warning: ServerHello CT delivery " +
                         "currently not implemented");
             }
 
-            return extData;
+            return null;
         }
     }
 
@@ -327,8 +347,9 @@ final class SignedCertTimestampExtension {
             // The producing happens in client side only.
             ClientHandshakeContext chc = (ClientHandshakeContext)context;
 
-            // In response to "signed_certificate_timestamp" extension
-            // data only.
+            // We should only be processing signed_certificate_timestamp
+            // extensions if the client explicitly stated support for it in
+            // its client hello message.
             if (!chc.handshakeExtensions.containsKey(CH_SIGNED_CERT_TIMESTAMP)) {
                 throw chc.conContext.fatal(Alert.UNEXPECTED_MESSAGE,
                         "Unexpected signed_certificate_timestamp extension " +
@@ -366,9 +387,8 @@ final class SignedCertTimestampExtension {
 
         @Override
         public byte[] produce(ConnectionContext context,
-                HandshakeMessage message) throws IOException {
-            ServerHandshakeContext shc = (ServerHandshakeContext)context;
-            byte[] producedData = null;
+                HandshakeMessage message) {
+            // ServerHandshakeContext shc = (ServerHandshakeContext)context;
 
             // TODO:
             // We currently don't have the implementation for server-side
@@ -377,7 +397,7 @@ final class SignedCertTimestampExtension {
 
             // Clear the pinned CertificateEntry from the context
             //shc.currentCertEntry = null;
-            return producedData;
+            return null;
         }
     }
 
@@ -394,15 +414,35 @@ final class SignedCertTimestampExtension {
             // The consumption happens in client side only.
             ClientHandshakeContext chc = (ClientHandshakeContext)context;
 
+            // We should only be processing signed_certificate_timestamp
+            // extensions if the client explicitly stated support for it in
+            // its client hello message.
+            if (!chc.handshakeExtensions.containsKey(CH_SIGNED_CERT_TIMESTAMP)) {
+                throw chc.conContext.fatal(Alert.UNEXPECTED_MESSAGE,
+                        "Unexpected signed_certificate_timestamp extension " +
+                                "in Server Certificate message");
+            }
+
             // Parse the extension.
-            SignedCertTimestampSpec sctSpec;
-            try {
-                // These SCTs will be in response to TLS hello extensions and
-                // therefore should use the completed X.509 certificate as
-                // input.
-                sctSpec = new SignedCertTimestampSpec(chc, buffer);
-            } catch (IOException ioe) {
-                throw chc.conContext.fatal(Alert.DECODE_ERROR, ioe);
+            // These SCTs will be in response to TLS hello extensions and
+            // therefore will be X509 SCTs (i.e. not created from a
+            // pre-certificate).
+            SignedCertTimestampSpec sctSpec = new SignedCertTimestampSpec(
+                    chc, buffer);
+            if (SSLLogger.isOn() &&
+                    SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
+                SSLLogger.finest("Received " +
+                        sctSpec.sigCertTsList.size() +
+                        " SCT entries from Certificate Message extension");
+            }
+
+            // There needs to be a non-null CertificateEntry to proceed
+            if (chc.currentCertEntry == null) {
+                if (SSLLogger.isOn() &&
+                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE)) {
+                    SSLLogger.finest("Found null CertificateEntry in context");
+                }
+                return;
             }
 
             // Get the SCT list from the spec.  Then all we need to do is
@@ -413,14 +453,12 @@ final class SignedCertTimestampExtension {
                 // Update the context.  We will need to access this SCT spec
                 // after we receive the certificate so it can be properly
                 // added to the cache.
-                chc.handshakeExtensions.put(CT_SIGNED_CERT_TIMESTAMP, sctSpec);
-                //chc.certTransActive = true;
-                if (SSLLogger.isOn() &&
-                        SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
-                    SSLLogger.finest("Received " +
-                            sctSpec.sigCertTsList.size() +
-                            " SCT entries from Certificate Message extension");
-                }
+                T13SCTMapSpec t13mSpec = (T13SCTMapSpec)chc.handshakeExtensions.
+                        getOrDefault(CT_SIGNED_CERT_TIMESTAMP,
+                                new T13SCTMapSpec());
+                t13mSpec.add(chc.currentCertEntry, sctSpec.sigCertTsList);
+
+                chc.handshakeExtensions.put(CT_SIGNED_CERT_TIMESTAMP, t13mSpec);
             } else {
                 if (SSLLogger.isOn() &&
                         SSLLogger.isOn(SSLLogger.Opt.HANDSHAKE_VERBOSE)) {
