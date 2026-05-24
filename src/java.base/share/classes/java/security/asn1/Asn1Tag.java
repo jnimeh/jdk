@@ -15,9 +15,9 @@ public final class Asn1Tag {
 
     private static final Map<Integer, Asn1Tag> UNIVERSAL_MAP = Map.ofEntries(
         new AbstractMap.SimpleImmutableEntry<>(1,
-                new Asn1Tag(TagClass.UNIVERSAL, 1, false)),     // Integer
+                new Asn1Tag(TagClass.UNIVERSAL, 1, false)),     // Boolean
         new AbstractMap.SimpleImmutableEntry<>(2,
-                new Asn1Tag(TagClass.UNIVERSAL, 2, false)),     // Boolean
+                new Asn1Tag(TagClass.UNIVERSAL, 2, false)),     // Integer
         new AbstractMap.SimpleImmutableEntry<>(3,
                 new Asn1Tag(TagClass.UNIVERSAL, 3, false)),     // Bit String
         new AbstractMap.SimpleImmutableEntry<>(4,

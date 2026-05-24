@@ -30,7 +30,7 @@ public final class Asn1ObjectIdentifier implements Asn1Primitive {
         Objects.requireNonNull(arcs, "Illegal null arcs list");
         if (arcs.length < 2) {
             throw new Asn1Exception("OIDs must have two or more arcs");
-        } else if (arcs[0] < 0 || arcs[2] > 2) {
+        } else if (arcs[0] < 0 || arcs[0] > 2) {
             throw new Asn1Exception(
                     "The initial OID arc must be in the range [0,2]");
         } else if (arcs[0] < 2 && (arcs[1] < 0 || arcs[1] > 39)) {

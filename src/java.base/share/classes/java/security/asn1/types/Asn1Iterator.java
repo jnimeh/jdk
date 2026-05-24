@@ -68,7 +68,7 @@ public final class Asn1Iterator<T extends Asn1Object> implements Iterator<T> {
      * @throws Asn1Exception if the desired ASN.1 type in {@code type} does
      * not match the current object returned by the iterator.
      */
-    public <U extends T> T nextAs(Class<U> type) {
+    public <U extends T> U nextAs(Class<U> type) {
         Asn1Object obj = next();
         if (!type.isInstance(obj)) {
             throw new Asn1Exception("Expected " + type.getSimpleName() +

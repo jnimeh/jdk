@@ -8,7 +8,7 @@ import java.security.asn1.*;
  * <p>{@code Asn1Sequence} objects provide an ordered representation of
  * a heterogeneous collection of {@link Asn1Object} objects.
  */
-public class Asn1Sequence implements Asn1Constructed<Asn1Object> {
+public final class Asn1Sequence implements Asn1Constructed<Asn1Object> {
 
     private final List<Asn1Object> elements;
 
@@ -108,7 +108,7 @@ public class Asn1Sequence implements Asn1Constructed<Asn1Object> {
      */
     @Override
     public Asn1Object get(int index) {
-        return null;
+        return elements.get(index);
     }
 
     /**
