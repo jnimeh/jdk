@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,6 +24,8 @@
  */
 
 package com.sun.java.swing.plaf.windows;
+
+import sun.swing.SwingUtilities2;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -62,6 +64,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
     }
 
 
+    @Override
     protected void installDefaults() {
         super.installDefaults();
 
@@ -80,6 +83,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
      * @see javax.swing.JComponent#getBaseline(int, int)
      * @since 1.6
      */
+    @Override
     public int getBaseline(JComponent c, int width, int height) {
         int baseline = super.getBaseline(c, width, height);
         if (XPStyle.getXP() != null && progressBar.isStringPainted() &&
@@ -102,6 +106,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
         return baseline;
     }
 
+    @Override
     protected Dimension getPreferredInnerHorizontal() {
         XPStyle xp = XPStyle.getXP();
         if (xp != null) {
@@ -113,6 +118,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
          return super.getPreferredInnerHorizontal();
     }
 
+    @Override
     protected Dimension getPreferredInnerVertical() {
          XPStyle xp = XPStyle.getXP();
          if (xp != null) {
@@ -124,18 +130,28 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
          return super.getPreferredInnerVertical();
     }
 
+    @Override
     protected void paintDeterminate(Graphics g, JComponent c) {
         XPStyle xp = XPStyle.getXP();
         if (xp != null) {
             boolean vertical = (progressBar.getOrientation() == JProgressBar.VERTICAL);
             boolean isLeftToRight = WindowsGraphicsUtils.isLeftToRight(c);
-            Graphics2D g2 = (Graphics2D) g;
-            AffineTransform at = g2.getTransform();
-            double scaleX = at.getScaleX();
-            double scaleY = at.getScaleY();
+            int barRectWidth, barRectHeight;
+            Graphics2D g2d = null;
+            double scaleX = 0, scaleY = 0;
+            if (g instanceof Graphics2D) {
+                g2d = (Graphics2D) g;
+                AffineTransform at = g2d.getTransform();
+                scaleX = at.getScaleX();
+                scaleY = at.getScaleY();
 
-            int barRectWidth = (int)Math.ceil(progressBar.getWidth() * scaleX);
-            int barRectHeight = (int)Math.ceil(progressBar.getHeight() * scaleY);
+                barRectWidth = (int) Math.ceil(progressBar.getWidth() * scaleX);
+                barRectHeight = (int) Math.ceil(progressBar.getHeight() * scaleY);
+            } else {
+                scaleX = scaleY = 1.0;
+                barRectWidth = (int) Math.ceil(progressBar.getWidth() * scaleX);
+                barRectHeight = (int) Math.ceil(progressBar.getHeight() * scaleY);
+            }
 
             // amount of progress to draw
             int amountFull = (int)(getAmountFull(null, barRectWidth, barRectHeight) / scaleX);
@@ -152,23 +168,44 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
                     return;
                 }
 
-                g2.setStroke(new BasicStroke((float)(vertical ? barRectWidth : barRectHeight),
-                                             BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL));
+                if (g instanceof Graphics2D) {
+                    g2d.setStroke(new BasicStroke((float) (vertical ? barRectWidth : barRectHeight),
+                            BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL));
+                }
                 if (!vertical) {
                     if (isLeftToRight) {
-                        g2.drawLine(0,          barRectHeight / 2,
+                        if (g instanceof Graphics2D) {
+                            g2d.drawLine(0, barRectHeight / 2,
                                     amountFull, barRectHeight / 2);
+                        } else {
+                            g.drawRect(0, 0, barRectWidth, barRectHeight);
+                            g.fillRect(0, 0, amountFull, barRectHeight);
+                        }
                     } else {
-                        g2.drawLine(2 + barRectWidth,
+                        if (g instanceof Graphics2D) {
+                            g2d.drawLine(2 + barRectWidth,
                                     barRectHeight / 2 + 1,
                                     2 + barRectWidth - (amountFull - 2),
                                     barRectHeight / 2 + 1);
+                        } else {
+                            g.drawRect(2 + barRectWidth, barRectHeight + 1,
+                                       barRectWidth, barRectHeight + 1);
+                            g.fillRect(2 + barRectWidth, barRectHeight + 1,
+                                        amountFull, barRectHeight + 1);
+                        }
                     }
                     paintString(g, 0, 0, (int)(barRectWidth / scaleX),
                                 (int)(barRectHeight / scaleY), amountFull, null);
                 } else {
-                    g2.drawLine(barRectWidth/2 + 1, barRectHeight + 1,
-                                barRectWidth/2 + 1, barRectHeight + 1 - amountFull + 2);
+                    if (g instanceof Graphics2D) {
+                        g2d.drawLine(barRectWidth / 2 + 1, barRectHeight + 1,
+                                barRectWidth / 2 + 1, barRectHeight + 1 - amountFull + 2);
+                    } else {
+                        g.drawRect(barRectWidth + 1, barRectHeight + 1,
+                                barRectWidth + 1, barRectHeight + 1);
+                        g.fillRect(barRectWidth + 1, barRectHeight + 1,
+                                    barRectWidth + 1, amountFull);
+                    }
                     paintString(g, 2, 2, barRectWidth, barRectHeight, amountFull, null);
                 }
 
@@ -218,6 +255,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
      * {@inheritDoc}
      * @since 1.6
      */
+    @Override
     protected void setAnimationIndex(int newValue) {
         super.setAnimationIndex(newValue);
         XPStyle xp = XPStyle.getXP();
@@ -241,6 +279,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
      * {@inheritDoc}
      * @since 1.6
      */
+    @Override
     protected int getBoxLength(int availableLength, int otherDimension) {
         XPStyle xp = XPStyle.getXP();
         if (xp != null) {
@@ -253,6 +292,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
      * {@inheritDoc}
      * @since 1.6
      */
+    @Override
     protected Rectangle getBox(Rectangle r) {
         Rectangle rect = super.getBox(r);
 
@@ -298,6 +338,7 @@ public class WindowsProgressBarUI extends BasicProgressBarUI
     }
 
 
+    @Override
     protected void paintIndeterminate(Graphics g, JComponent c) {
         XPStyle xp = XPStyle.getXP();
         if (xp != null) {
