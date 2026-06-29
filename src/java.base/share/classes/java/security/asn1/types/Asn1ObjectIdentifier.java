@@ -98,10 +98,14 @@ public final class Asn1ObjectIdentifier implements Asn1Primitive {
         // Filter the OID string through the regex pattern first, then
         // split and convert them to integers
         if (OID_REGEX.matcher(oidStr).matches()) {
-            String[] oidComponents = oidStr.split("\\.");
-            int[] arcs = Arrays.stream(oidComponents)
-                    .mapToInt(Integer::parseInt).toArray();
-            return new Asn1ObjectIdentifier(arcs);
+            try {
+                String[] oidComponents = oidStr.split("\\.");
+                int[] arcs = Arrays.stream(oidComponents)
+                        .mapToInt(Integer::parseInt).toArray();
+                return new Asn1ObjectIdentifier(arcs);
+            } catch (NumberFormatException nfe) {
+                throw new Asn1Exception(nfe);
+            }
         } else {
             throw new Asn1Exception(
                     "OID string violates dotted numeric string rules");

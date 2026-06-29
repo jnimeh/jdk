@@ -31,16 +31,19 @@ public final class Asn1Implicit<T extends Asn1Object> implements Asn1Tagged<T> {
      * @param <T> the type of encapsulated data this object holds
      * @return the {@code Asn1Implicit} object that encapsulates the underlying
      * ASN.1 object.
+     * @throws NullPointerException if either {@code tag} or {@code inner} are
+     * {@code null}
      * @throws Asn1Exception if the {@code tag} does not match the
      * primitive/constructed bit of its underlying type.
      */
     public static <T extends Asn1Object> Asn1Implicit<T> of(
             Asn1Tag tag, T inner) {
+        Objects.requireNonNull(tag, "Illegal missing implicit tag");
+        Objects.requireNonNull(inner, "Illegal missing implicit value");
         if (tag.isConstructed() != inner.tag().isConstructed()) {
             throw new Asn1Exception("IMPLICIT must preserve constructed bit");
         }
-        return new Asn1Implicit<>(Objects.requireNonNull(tag),
-                Objects.requireNonNull(inner));
+        return new Asn1Implicit<>(tag, inner);
     }
 
     /**

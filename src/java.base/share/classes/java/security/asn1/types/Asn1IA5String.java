@@ -1,5 +1,6 @@
 package java.security.asn1.types;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.security.asn1.*;
 
@@ -48,7 +49,8 @@ public final class Asn1IA5String implements Asn1Primitive {
                         "Illegal characters provided to Asn1IA5String");
             }
         }
-        return new Asn1IA5String(new String(stringBytes));
+        return new Asn1IA5String(new String(stringBytes,
+                StandardCharsets.US_ASCII));
     }
 
     private static boolean validate(String s) {

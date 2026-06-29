@@ -31,16 +31,19 @@ public final class Asn1Explicit<T extends Asn1Object> implements Asn1Tagged<T> {
      * @param <T> the type of encapsulated data this object holds
      * @return the {@code Asn1Implicit} object that encapsulates the underlying
      * ASN.1 object.
+     * @throws NullPointerException if either {@code tag} or {@code inner} are
+     * {@code null}
      * @throws Asn1Exception if the {@code tag} does not have the constructed
      * bit set.
      */
     public static <T extends Asn1Object> Asn1Explicit<T> of(
             Asn1Tag tag, T inner) {
+        Objects.requireNonNull(tag, "Illegal missing explicit tag");
+        Objects.requireNonNull(inner, "Illegal missing explicit value");
         if (!tag.isConstructed()) {
             throw new Asn1Exception("EXPLICIT tag must be constructed");
         }
-        return new Asn1Explicit<>(Objects.requireNonNull(tag),
-                Objects.requireNonNull(inner));
+        return new Asn1Explicit<>(tag, inner);
     }
 
     /**
